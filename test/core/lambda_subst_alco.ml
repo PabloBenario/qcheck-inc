@@ -1,5 +1,3 @@
-let incomplete_counter = ref 0
-
 module G = QCheck2.Gen
 
 (* ========================================================================= *)
@@ -124,10 +122,8 @@ let rec subst_2_incomplete x s t =
       if x = y then t
       else
         (match body with
-         | Abs _ -> incr incomplete_counter;
-                    raise (QCheck2.TBD "subst_2_incomplete: nested Abs")
-         | App _ -> incr incomplete_counter;
-                    raise (QCheck2.TBD "subst_2_incomplete: App in Abs body")
+         | Abs _ -> raise (QCheck2.TBD "subst_2_incomplete: nested Abs")
+         | App _ -> raise (QCheck2.TBD "subst_2_incomplete: App in Abs body")
          | _     -> Abs (y, subst_2_incomplete x s body))
 
 
@@ -346,79 +342,21 @@ let prop_subst_free_no_var_capture_open_subst_2_incomplete =
 
 
 (* ========================================================================== *)
-(* SECTION 6: RUNNING WITHOUT THE RUNNER (using QCheck2.Test.check_exn)       *)
+(* SECTION 6: ALCOTEST ENTRY POINT                                            *)
 (* ========================================================================== *)
 
-let run_direct (test : QCheck2.Test.t) : unit =
-  match test with
-  | QCheck2.Test.Test cell ->
-     let name = QCheck2.Test.get_name cell in
-     Printf.printf "\n=== %s ===\n" name;
-     let rand = Random.State.make_self_init () in
-     let res = QCheck2.Test.check_cell ~rand cell in
-     let count = QCheck2.TestResult.get_count res in
-     let n_fails =
-       match QCheck2.TestResult.get_state res with
-       | QCheck2.TestResult.Failed { instances } -> List.length instances
-       | _ -> 0
-     in
-     let passed = count - n_fails in
-     match QCheck2.Test.check_result cell res with
-     | () -> Printf.printf "PASS (passed: %d)\n" passed
-     | exception QCheck2.Test.Test_fail (tname, msgs) ->
-        Printf.printf "FAIL [%s] (passed: %d, failed: %d):\n%s\n"
-          tname passed n_fails (String.concat "\n" msgs)
-     | exception QCheck2.Test.Test_error (tname, msg, exn, _bt) ->
-        Printf.printf "ERROR [%s] (passed: %d, failed: %d): %s\n%s\n"
-          tname passed n_fails msg (Printexc.to_string exn)
-
-(* Analogous to run_direct, but uses the incremental PBT feature:
-   TBD raises are counted and reported instead of crashing.
-   Prints both the pass count and the incomplete count on every outcome
-   (pass, fail, error), so a mixed run shows all three statistics. *)
-let run_direct_incomplete (test : QCheck2.Test.t) : unit =
-  match test with
-  | QCheck2.Test.Test cell ->
-     let name = QCheck2.Test.get_name cell in
-     Printf.printf "\n=== %s ===\n" name;
-     let rand = Random.State.make_self_init () in
-     let res = QCheck2.Test.check_cell ~rand cell in
-     let count = QCheck2.TestResult.get_count res in
-     let incomplete = QCheck2.TestResult.get_count_incomplete res in
-     let n_fails =
-       match QCheck2.TestResult.get_state res with
-       | QCheck2.TestResult.Failed { instances } -> List.length instances
-       | _ -> 0
-     in
-     let passed = count - n_fails in
-     let tbd_reasons = QCheck2.TestResult.get_tbd_reasons res in
-     let print_tbd_reasons () =
-       List.iter (fun (reason, count) ->
-         Printf.printf "  TBD: %s (%d times)\n" reason count
-       ) tbd_reasons
-     in
-     match QCheck2.Test.check_result cell res with
-     | () ->
-        Printf.printf "PASS (passed: %d, incomplete cases: %d)\n"
-          passed incomplete;
-        print_tbd_reasons ()
-     | exception QCheck2.Test.Test_fail (tname, msgs) ->
-          Printf.printf "FAIL [%s] (passed: %d, failed: %d, incomplete cases: %d):\n%s\n"
-            tname passed n_fails incomplete (String.concat "\n" msgs);
-          print_tbd_reasons ()
-     | exception QCheck2.Test.Test_error (tname, msg, exn, _bt) ->
-        Printf.printf "ERROR [%s] (passed: %d, failed: %d, incomplete cases: %d): %s\n%s"
-          tname passed n_fails incomplete msg (Printexc.to_string exn);
-        print_tbd_reasons ()
-
-
-
 let () =
-  run_direct            test_validity;
-  run_direct            test_shrinker;
-  run_direct_incomplete prop_subst_free_no_var_capture_open_subst_naive;
-  run_direct_incomplete prop_subst_free_no_var_capture_open_subst_incom;
-  run_direct_incomplete prop_subst_free_no_var_capture_open_subst_mixed;
-  incomplete_counter := 0;
-  run_direct_incomplete prop_subst_free_no_var_capture_open_subst_2_incomplete;
-  Printf.printf "(global counter: TBD raised %d times)\n" !incomplete_counter
+  let suite_basic =
+    List.map QCheck_alcotest.to_alcotest
+      [ test_validity; test_shrinker ]
+  in
+  let suite_subst =
+    List.map QCheck_alcotest.to_alcotest
+      [ prop_subst_free_no_var_capture_open_subst_naive;
+        prop_subst_free_no_var_capture_open_subst_incom;
+        prop_subst_free_no_var_capture_open_subst_mixed;
+        prop_subst_free_no_var_capture_open_subst_2_incomplete ]
+  in
+  Alcotest.run "Lambda Substitution (Incremental PBT)"
+    [ "generators", suite_basic;
+      "substitution", suite_subst ]

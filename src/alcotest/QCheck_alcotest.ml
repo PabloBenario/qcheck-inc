@@ -54,6 +54,15 @@ let to_alcotest
   let name = T.get_name cell in
   let run () =
     let call = Raw.callback ~colors ~verbose ~print_res:false ~print in
-    T.check_cell_exn ~long ~call ~handler ~rand cell
+    let res = T.check_cell ~long ~call ~handler ~rand cell in
+    let incomplete = Q.TestResult.get_count_incomplete res in
+    if incomplete > 0 then begin
+      let tbd_reasons = Q.TestResult.get_tbd_reasons res in
+      Printf.printf "  incomplete cases: %d\n" incomplete;
+      List.iter (fun (reason, count) ->
+        Printf.printf "    TBD: %s (%d times)\n" reason count
+      ) tbd_reasons
+    end;
+    T.check_result cell res
   in
   ((name, speed_level, run) : unit Alcotest.test_case)
