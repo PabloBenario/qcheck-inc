@@ -1501,6 +1501,7 @@ module TestResult = struct
     mutable state : 'a state;
     mutable count: int;  (* number of tests *)
     mutable count_gen: int; (* number of generated cases *)
+    mutable count_incomplete: int; (* number of cases that raised IncompleteCode *)
     collect_tbl: (string, int) Hashtbl.t lazy_t;
     stats_tbl: ('a stat * (int, int) Hashtbl.t) list;
     mutable warnings: string list;
@@ -1511,6 +1512,8 @@ module TestResult = struct
   let get_count {count; _} = count
 
   let get_count_gen {count_gen; _} = count_gen
+
+  let get_count_incomplete {count_incomplete; _} = count_incomplete
 
   (* indicate failure on the given [instance] *)
   let fail ~msg_l ~steps:shrink_steps res instance =
@@ -1542,7 +1545,7 @@ module TestResult = struct
 end
 
 module Test_exceptions = struct
-
+  (* pibf: sera que aca tengo que agregar la excepcion de incompletitud? *)
   exception Test_fail of string * string list
   exception Test_error of string * string * exn * string
   exception Test_unexpected_success of string
@@ -1797,6 +1800,19 @@ module Test = struct
     );
     !r
 
+  (* Detect IncompleteCode by name, since the exception may be defined
+     in user code rather than in QCheck2.ml. Matches "IncompleteCode",
+     "Lambda_subst.IncompleteCode", "Dune__exe__Lambda_subst.IncompleteCode",
+     etc., but not "MyIncompleteCode" or "IncompleteCodeXYZ". *)
+  let is_incomplete_code (e : exn) : bool =
+    let name = Printexc.exn_slot_name e in
+    let target = "IncompleteCode" in
+    let n = String.length name in
+    let t = String.length target in
+    n >= t
+    && String.sub name (n - t) t = target
+    && (n = t || name.[n - t - 1] = '.')
+
   (* try to shrink counter-ex [i] into a smaller one. Returns
      shrinked value and number of steps *)
   let shrink st (i_tree : 'a Tree.t) (r : res_or_exn) m : 'a * res_or_exn * string list * int =
@@ -1821,6 +1837,7 @@ module Test = struct
                  end
                with
                | Failed_precondition | No_example_found _ -> None
+               | e when is_incomplete_code e -> None (* skip incomplete candidates *)
                | e when is_err -> Some (Tree.pure x, Shrink_exn e, []) (* fail test (by error) *)
              ) (f i)
         | None -> (* QCheck2 (or QCheck1 with a shrinkless tree): use the shrink tree *)
@@ -1836,6 +1853,7 @@ module Test = struct
                end
              with
              | Failed_precondition | No_example_found _ -> None
+             | e when is_incomplete_code e -> None (* skip incomplete candidates *)
              | e when is_err -> Some (x_tree, Shrink_exn e, []) (* fail test (by error) *)
           ) shrinks
                |> Seq.hd
@@ -1921,6 +1939,11 @@ module Test = struct
       | Failed_precondition | No_example_found _ ->
         state.step state.test.name state.test input FalseAssumption;
         CR_continue
+      | e when is_incomplete_code e ->
+        (* incremental PBT: incomplete case, count and continue *)
+        state.res.R.count_incomplete <- state.res.R.count_incomplete + 1;
+        state.step state.test.name state.test input FalseAssumption;
+        CR_continue
       | e ->
         let bt = Printexc.get_backtrace () in
         handle_exn state input_tree e bt
@@ -1938,7 +1961,7 @@ module Test = struct
   let check_if_assumptions target_count cell res : unit =
     let percentage_of_count = float_of_int res.R.count /. float_of_int target_count in
     let assm_flag, assm_frac = cell.if_assumptions_fail in
-    if R.is_success res && percentage_of_count < assm_frac then (
+    if R.is_success res && res.R.count_incomplete = 0 && percentage_of_count < assm_frac then (
       let msg =
         format_of_string "%s: \
                           only %.1f%% tests (of %d) passed precondition for %S\n\n\
@@ -1960,6 +1983,7 @@ module Test = struct
     )
 
   (* main checking function *)
+  (* pibf: esta debe ser la funcion mas importante de todas *)
   let check_cell ?(long=false) ?(call=callback_nil_)
       ?(step=step_nil_) ?(handler=handler_nil_)
       ?(rand=RS.make [| 0 |]) cell =
@@ -1972,7 +1996,7 @@ module Test = struct
       cur_max_gen=factor*cell.max_gen;
       cur_max_fail=factor*cell.max_fail;
       res = {R.
-              state=R.Success; count=0; count_gen=0;
+              state=R.Success; count=0; count_gen=0; count_incomplete=0;
               collect_tbl=lazy (Hashtbl.create 10);
               warnings=[];
               stats_tbl= List.map (fun stat -> stat, Hashtbl.create 10) cell.stats;

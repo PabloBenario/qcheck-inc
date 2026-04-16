@@ -1695,6 +1695,10 @@ module TestResult : sig
   val get_count_gen : _ t -> int
   (** [get_count_gen t] returns the number of generated cases. *)
 
+  val get_count_incomplete : _ t -> int
+  (** [get_count_incomplete t] returns the number of cases that raised
+      [IncompleteCode] and were skipped. *)
+
   val get_collect : _ t -> (string,int) Hashtbl.t option
   (** [get_collect t] returns the repartition of generated values.
       @since 0.18 *)

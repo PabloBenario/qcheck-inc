@@ -11,3 +11,12 @@ man
 *.byte
 .merlin
 _opam/
+
+# AI tooling
+.claude/
+CLAUDE.md
+
+# MacOS ignore
+.DS_Store
+
+*.pdf

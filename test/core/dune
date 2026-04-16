@@ -71,3 +71,8 @@
   (name rng_independence)
   (modules rng_independence)
   (libraries qcheck-core qcheck-core.runner))
+
+(executable
+  (name lambda_subst)
+  (modules lambda_subst)
+  (libraries qcheck-core qcheck-core.runner))
