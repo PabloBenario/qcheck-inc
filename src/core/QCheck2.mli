@@ -1633,6 +1633,29 @@ val assume_fail : unit -> 'a
     @since 0.5.1
 *)
 
+(** {1 Incremental PBT} *)
+
+exception TBD of string
+(** [TBD reason] should be raised in branches of the system under test that
+    are not yet implemented. The [reason] string describes which part of the
+    code is incomplete (e.g. ["Abs case of subst not yet handled"]).
+
+    When a test input causes [TBD] to be raised, QCheck2 counts it as an
+    incomplete case (neither pass nor fail), skips shrinking, and continues
+    testing the remaining inputs. This allows property-based testing to validate
+    the already-implemented portions of code during incremental development.
+
+    Usage:
+    {[
+      let rec subst x s = function
+        | Var y -> if x = y then s else Var y
+        | Abs _ -> raise (QCheck2.TBD "Abs case not yet implemented")
+    ]}
+
+    @see <#TestResult> {!TestResult.get_count_incomplete} to read how many cases were skipped.
+    @see <#TestResult> {!TestResult.get_tbd_reasons} to read the unique TBD reasons and their counts.
+*)
+
 (** {1 Tests}
 
     A test is a universal property of type [foo -> bool] for some type [foo],
@@ -1697,7 +1720,12 @@ module TestResult : sig
 
   val get_count_incomplete : _ t -> int
   (** [get_count_incomplete t] returns the number of cases that raised
-      [IncompleteCode] and were skipped. *)
+      {!TBD} and were skipped. *)
+
+  val get_tbd_reasons : _ t -> (string * int) list
+  (** [get_tbd_reasons t] returns a list of [(reason, count)] pairs, where each
+      [reason] is a unique string passed to {!TBD} during the test run, and
+      [count] is how many times that particular reason was encountered. *)
 
   val get_collect : _ t -> (string,int) Hashtbl.t option
   (** [get_collect t] returns the repartition of generated values.
