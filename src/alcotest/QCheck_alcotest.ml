@@ -63,6 +63,8 @@ let to_alcotest
         Printf.printf "    TODO: %s (%d times)\n" reason count
       ) todo_reasons
     end;
-    T.check_result cell res
+    T.check_result cell res;
+    if incomplete > 0 then
+      Alcotest.incomplete (Printf.sprintf "%d incomplete case(s)" incomplete)
   in
   ((name, speed_level, run) : unit Alcotest.test_case)

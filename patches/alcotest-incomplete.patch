@@ -1,0 +1,181 @@
+From 463d581f062fa6dec26857bd0341a3973c251c15 Mon Sep 17 00:00:00 2001
+From: PabloBenario <pablo.benario@ug.uchile.cl>
+Date: Tue, 21 Apr 2026 16:09:44 -0400
+Subject: [PATCH] Add Incomplete outcome: exception, variant, printer branches,
+ helper
+
+Adds a third test outcome alongside Ok/Fail/Skip:
+
+- exception Alcotest.Incomplete of string (Core.V1)
+- `Incomplete of string variant in Run_result.t
+- is_failure: false (does not count toward failures/exit code)
+- has_run: true (does count toward 'N tests run' summary)
+- protect_test catches the exception and produces the new variant
+- pp/pp_intf: new [INCOMPLETE] tag, yellow, compact char 'I'
+- Alcotest.incomplete : string -> 'a helper (mirrors Alcotest.skip)
+
+Opt-in: if no test raises Alcotest.Incomplete, the added branches
+are unreachable and upstream behaviour is unchanged.
+---
+ src/alcotest-engine/core.ml      | 5 ++++-
+ src/alcotest-engine/core_intf.ml | 1 +
+ src/alcotest-engine/model.ml     | 5 +++--
+ src/alcotest-engine/pp.ml        | 7 +++++--
+ src/alcotest-engine/pp_intf.ml   | 2 +-
+ src/alcotest-engine/test.ml      | 1 +
+ src/alcotest-engine/test.mli     | 9 +++++++++
+ 7 files changed, 24 insertions(+), 6 deletions(-)
+
+diff --git a/src/alcotest-engine/core.ml b/src/alcotest-engine/core.ml
+index 459686d..e4ac508 100644
+--- a/src/alcotest-engine/core.ml
++++ b/src/alcotest-engine/core.ml
+@@ -20,6 +20,7 @@ open Model
+ 
+ exception Check_error of unit Fmt.t
+ exception Skip
++exception Incomplete of string
+ 
+ let () =
+   let print_error =
+@@ -174,7 +175,7 @@ module Make (P : Platform.MAKER) (M : Monad.S) = struct
+       ppf ()
+ 
+   let has_run : Run_result.t -> bool = function
+-    | `Ok | `Error _ | `Exn _ -> true
++    | `Ok | `Error _ | `Exn _ | `Incomplete _ -> true
+     | `Skip | `Todo _ -> false
+ 
+   let bt () = match Printexc.get_backtrace () with "" -> "" | s -> "\n" ^ s
+@@ -189,6 +190,7 @@ module Make (P : Platform.MAKER) (M : Monad.S) = struct
+              let err = Fmt.(err ++ const string (bt ())) in
+              `Error (path, err)
+          | Skip -> `Skip
++         | Incomplete msg -> `Incomplete msg
+          | Failure s -> exn path "failure" Fmt.(const string s)
+          | Invalid_argument s -> exn path "invalid" Fmt.(const string s)
+          | e -> exn path "exception" Fmt.(const exn e))
+@@ -451,4 +453,5 @@ module V1 = struct
+   module Make = Make
+ 
+   exception Skip = Skip
++  exception Incomplete = Incomplete
+ end
+diff --git a/src/alcotest-engine/core_intf.ml b/src/alcotest-engine/core_intf.ml
+index 4d60227..e5bda5c 100644
+--- a/src/alcotest-engine/core_intf.ml
++++ b/src/alcotest-engine/core_intf.ml
+@@ -123,5 +123,6 @@ module type Core = sig
+         Intended for use by the {!Alcotest_lwt} and {!Alcotest_async} backends. *)
+ 
+     exception Skip
++    exception Incomplete of string
+   end
+ end
+diff --git a/src/alcotest-engine/model.ml b/src/alcotest-engine/model.ml
+index de17cc2..cc1f07b 100644
+--- a/src/alcotest-engine/model.ml
++++ b/src/alcotest-engine/model.ml
+@@ -52,11 +52,12 @@ module Run_result = struct
+     | `Exn of Test_name.t * string * unit Fmt.t
+     | `Error of Test_name.t * unit Fmt.t
+     | `Skip
+-    | `Todo of string ]
++    | `Todo of string
++    | `Incomplete of string ]
+ 
+   (** [is_failure] holds for test results that are error states. *)
+   let is_failure : t -> bool = function
+-    | `Ok | `Skip -> false
++    | `Ok | `Skip | `Incomplete _ -> false
+     | `Error _ | `Exn _ | `Todo _ -> true
+ end
+ 
+diff --git a/src/alcotest-engine/pp.ml b/src/alcotest-engine/pp.ml
+index 0058787..761da1f 100644
+--- a/src/alcotest-engine/pp.ml
++++ b/src/alcotest-engine/pp.ml
+@@ -26,7 +26,7 @@ let pp_plural ppf x = Fmt.pf ppf (if x < 2 then "" else "s")
+ let colour_of_tag = function
+   | `Ok -> `Green
+   | `Fail -> `Red
+-  | `Skip | `Todo | `Assert -> `Yellow
++  | `Skip | `Todo | `Assert | `Incomplete -> `Yellow
+ 
+ let string_of_tag = function
+   | `Ok -> "OK"
+@@ -34,6 +34,7 @@ let string_of_tag = function
+   | `Skip -> "SKIP"
+   | `Todo -> "TODO"
+   | `Assert -> "ASSERT"
++  | `Incomplete -> "INCOMPLETE"
+ 
+ let pp_tag ~wrapped ppf typ =
+   let colour = colour_of_tag typ in
+@@ -55,7 +56,7 @@ struct
+   let rresult_error ppf = function
+     | `Error (_, e) -> Fmt.pf ppf "%a@," e ()
+     | `Exn (_, n, e) -> Fmt.pf ppf "[%s] @[<v>%a@]" n e ()
+-    | `Ok | `Todo _ | `Skip -> ()
++    | `Ok | `Todo _ | `Skip | `Incomplete _ -> ()
+ 
+   (* Colours *)
+   let color c ppf fmt = Fmt.(styled c string) ppf fmt
+@@ -105,6 +106,7 @@ struct
+     | `Exn _ | `Error _ -> `Fail
+     | `Skip -> `Skip
+     | `Todo _ -> `Todo
++    | `Incomplete _ -> `Incomplete
+ 
+   let pp_result ppf result =
+     let tag = tag_of_result result in
+@@ -118,6 +120,7 @@ struct
+       | `Exn _ | `Error _ -> 'F'
+       | `Skip -> 'S'
+       | `Todo _ -> 'T'
++      | `Incomplete _ -> 'I'
+     in
+     Fmt.(styled colour char) ppf char
+ 
+diff --git a/src/alcotest-engine/pp_intf.ml b/src/alcotest-engine/pp_intf.ml
+index 56b2efc..729e7db 100644
+--- a/src/alcotest-engine/pp_intf.ml
++++ b/src/alcotest-engine/pp_intf.ml
+@@ -82,7 +82,7 @@ module type S = sig
+ end
+ 
+ module type Pp = sig
+-  val tag : [ `Ok | `Fail | `Skip | `Todo | `Assert ] Fmt.t
++  val tag : [ `Ok | `Fail | `Skip | `Todo | `Assert | `Incomplete ] Fmt.t
+   val map_theta : theta -> f:(unit Fmt.t -> unit Fmt.t) -> theta
+ 
+   val pp_plural : int Fmt.t
+diff --git a/src/alcotest-engine/test.ml b/src/alcotest-engine/test.ml
+index e441c61..d811d23 100644
+--- a/src/alcotest-engine/test.ml
++++ b/src/alcotest-engine/test.ml
+@@ -269,3 +269,4 @@ let match_raises ?here ?pos msg exnp f =
+               msg Fmt.exn e)
+ 
+ let skip () = raise Core.V1.Skip
++let incomplete reason = raise (Core.V1.Incomplete reason)
+diff --git a/src/alcotest-engine/test.mli b/src/alcotest-engine/test.mli
+index 4f0a6e7..d77021c 100644
+--- a/src/alcotest-engine/test.mli
++++ b/src/alcotest-engine/test.mli
+@@ -166,3 +166,12 @@ val skip : unit -> 'a
+ (** Skip the current test case.
+ 
+     @since 1.7.0 *)
++
++val incomplete : string -> 'a
++(** Mark the current test case as incomplete.
++
++    Produces the [\[INCOMPLETE\]] tag in alcotest output. Unlike a failure,
++    this does not count toward exit code and does not stop the run. Intended
++    for tests that exercised not-yet-implemented code paths.
++
++    @since 1.9.1+inc *)
+-- 
+2.50.1 (Apple Git-155)
+
