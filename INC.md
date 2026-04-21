@@ -925,35 +925,35 @@ The test binary is registered in `test/core/dune` as:
 
 ### 14.5 Before vs After: Alcotest Incomplete Visibility
 
-| Aspect | Before | After |
-|--------|--------|-------|
-| API called | `T.check_cell_exn` | `T.check_cell` + `T.check_result` |
-| `TestResult.t` accessible | No (consumed internally) | Yes (inspected before raising) |
-| Incomplete count printed | No | Yes, when `count_incomplete > 0` |
-| Per-reason breakdown printed | No | Yes, one line per distinct TODO reason |
-| Alcotest verdict | Unchanged | Unchanged |
-| Backward compat (no incomplete) | N/A | Identical output — no extra lines |
+| Aspect                          | Before                   | After                                  |
+|---------------------------------|--------------------------|----------------------------------------|
+| API called                      | `T.check_cell_exn`       | `T.check_cell` + `T.check_result`      |
+| `TestResult.t` accessible       | No (consumed internally) | Yes (inspected before raising)         |
+| Incomplete count printed        | No                       | Yes, when `count_incomplete > 0`       |
+| Per-reason breakdown printed    | No                       | Yes, one line per distinct TODO reason |
+| Alcotest verdict                | Unchanged                | Unchanged                              |
+| Backward compat (no incomplete) | N/A                      | Identical output — no extra lines      |
 
 ---
 
 ## 15. Summary of Touched Locations
 
-| File | Change |
-|------|--------|
-| `src/core/QCheck2.ml` | `todo_reason` prefix-extraction helper in `module Test` |
-| `src/core/QCheck2.ml` | `count_incomplete` field and `todo_reasons` hashtable in `TestResult.t` |
-| `src/core/QCheck2.ml` | `get_count_incomplete` and `get_todo_reasons` accessors |
-| `src/core/QCheck2.ml` | Skip TODO-prefixed `Failure` candidates during shrinking (two locations) |
-| `src/core/QCheck2.ml` | Runner arm: catch `Failure msg`, dispatch on `todo_reason`, record count + reason, continue; fall through to `handle_exn` for non-TODO `Failure` |
-| `src/core/QCheck2.ml` | Suppress "too many discards" warning when `count_incomplete > 0` |
-| `src/core/QCheck2.ml` | Initialize `count_incomplete = 0` and `todo_reasons` in `check_cell` |
-| `src/core/QCheck2.mli` | Doc-only `{1 Incremental PBT}` section describing the `failwith "TODO:..."` convention |
-| `src/core/QCheck2.mli` | Expose `get_count_incomplete` and `get_todo_reasons` in `TestResult` |
-| `src/alcotest/QCheck_alcotest.ml` | `to_alcotest` uses `check_cell` + `check_result`; prints incomplete breakdown before raising |
-| `src/alcotest/QCheck_alcotest.mli` | Document TODO-aware behaviour in the `to_alcotest` docstring |
-| `test/core/dune` | `lambda_subst` and `lambda_subst_alco` executable stanzas |
-| `test/core/lambda_subst.ml` | Thesis experiment: 4 substitutions, generators, property, direct runners |
-| `test/core/lambda_subst_alco.ml` | Alcotest variant of the thesis experiment (same 4 implementations via `QCheck_alcotest`) |
+| File                               | Change                                                                                                                                           |
+|------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `src/core/QCheck2.ml`              | `todo_reason` prefix-extraction helper in `module Test`                                                                                          |
+| `src/core/QCheck2.ml`              | `count_incomplete` field and `todo_reasons` hashtable in `TestResult.t`                                                                          |
+| `src/core/QCheck2.ml`              | `get_count_incomplete` and `get_todo_reasons` accessors                                                                                          |
+| `src/core/QCheck2.ml`              | Skip TODO-prefixed `Failure` candidates during shrinking (two locations)                                                                         |
+| `src/core/QCheck2.ml`              | Runner arm: catch `Failure msg`, dispatch on `todo_reason`, record count + reason, continue; fall through to `handle_exn` for non-TODO `Failure` |
+| `src/core/QCheck2.ml`              | Suppress "too many discards" warning when `count_incomplete > 0`                                                                                 |
+| `src/core/QCheck2.ml`              | Initialize `count_incomplete = 0` and `todo_reasons` in `check_cell`                                                                             |
+| `src/core/QCheck2.mli`             | Doc-only `{1 Incremental PBT}` section describing the `failwith "TODO:..."` convention                                                           |
+| `src/core/QCheck2.mli`             | Expose `get_count_incomplete` and `get_todo_reasons` in `TestResult`                                                                             |
+| `src/alcotest/QCheck_alcotest.ml`  | `to_alcotest` uses `check_cell` + `check_result`; prints incomplete breakdown before raising                                                     |
+| `src/alcotest/QCheck_alcotest.mli` | Document TODO-aware behaviour in the `to_alcotest` docstring                                                                                     |
+| `test/core/dune`                   | `lambda_subst` and `lambda_subst_alco` executable stanzas                                                                                        |
+| `test/core/lambda_subst.ml`        | Thesis experiment: 4 substitutions, generators, property, direct runners                                                                         |
+| `test/core/lambda_subst_alco.ml`   | Alcotest variant of the thesis experiment (same 4 implementations via `QCheck_alcotest`)                                                         |
 
 All other modules are untouched; consumers that never raise
 `failwith "TODO:..."` observe identical behavior to upstream QCheck2.
