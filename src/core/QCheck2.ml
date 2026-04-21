@@ -74,9 +74,6 @@ exception Failed_precondition
 exception No_example_found of string
 (* raised if an example failed to be found *)
 
-exception TBD of string
-(* raised by user to signal not-yet-implemented code in incremental PBT *)
-
 let assume b = if not b then raise Failed_precondition
 
 let assume_fail () = raise Failed_precondition
@@ -1504,8 +1501,8 @@ module TestResult = struct
     mutable state : 'a state;
     mutable count: int;  (* number of tests *)
     mutable count_gen: int; (* number of generated cases *)
-    mutable count_incomplete: int; (* number of cases that raised TBD *)
-    tbd_reasons: (string, int) Hashtbl.t; (* TBD reason -> hit count *)
+    mutable count_incomplete: int; (* number of cases that raised failwith "TODO:..." *)
+    todo_reasons: (string, int) Hashtbl.t; (* TODO reason -> hit count *)
     collect_tbl: (string, int) Hashtbl.t lazy_t;
     stats_tbl: ('a stat * (int, int) Hashtbl.t) list;
     mutable warnings: string list;
@@ -1519,8 +1516,8 @@ module TestResult = struct
 
   let get_count_incomplete {count_incomplete; _} = count_incomplete
 
-  let get_tbd_reasons {tbd_reasons; _} =
-    Hashtbl.fold (fun reason count acc -> (reason, count) :: acc) tbd_reasons []
+  let get_todo_reasons {todo_reasons; _} =
+    Hashtbl.fold (fun reason count acc -> (reason, count) :: acc) todo_reasons []
 
   (* indicate failure on the given [instance] *)
   let fail ~msg_l ~steps:shrink_steps res instance =
@@ -1807,6 +1804,15 @@ module Test = struct
     );
     !r
 
+  (* Extract the reason from a [failwith "TODO:<reason>"] message.
+     Returns [Some reason] if [msg] starts with "TODO:" (reason may be empty),
+     else [None]. *)
+  let todo_reason (msg : string) : string option =
+    let prefix = "TODO:" in
+    let plen = String.length prefix in
+    if String.length msg >= plen && String.sub msg 0 plen = prefix
+    then Some (String.sub msg plen (String.length msg - plen))
+    else None
 
   (* try to shrink counter-ex [i] into a smaller one. Returns
      shrinked value and number of steps *)
@@ -1832,7 +1838,7 @@ module Test = struct
                  end
                with
                | Failed_precondition | No_example_found _ -> None
-               | TBD _ -> None (* skip incomplete candidates *)
+               | Failure msg when todo_reason msg <> None -> None (* skip incomplete candidates *)
                | e when is_err -> Some (Tree.pure x, Shrink_exn e, []) (* fail test (by error) *)
              ) (f i)
         | None -> (* QCheck2 (or QCheck1 with a shrinkless tree): use the shrink tree *)
@@ -1848,7 +1854,7 @@ module Test = struct
                end
              with
              | Failed_precondition | No_example_found _ -> None
-             | TBD _ -> None (* skip incomplete candidates *)
+             | Failure msg when todo_reason msg <> None -> None (* skip incomplete candidates *)
              | e when is_err -> Some (x_tree, Shrink_exn e, []) (* fail test (by error) *)
           ) shrinks
                |> Seq.hd
@@ -1934,14 +1940,19 @@ module Test = struct
       | Failed_precondition | No_example_found _ ->
         state.step state.test.name state.test input FalseAssumption;
         CR_continue
-      | TBD reason ->
-        (* incremental PBT: incomplete case, count and continue *)
-        state.res.R.count_incomplete <- state.res.R.count_incomplete + 1;
-        let tbl = state.res.R.tbd_reasons in
-        let prev = try Hashtbl.find tbl reason with Not_found -> 0 in
-        Hashtbl.replace tbl reason (prev + 1);
-        state.step state.test.name state.test input FalseAssumption;
-        CR_continue
+      | Failure msg as e ->
+        (match todo_reason msg with
+         | Some reason ->
+           (* incremental PBT: incomplete case, count and continue *)
+           state.res.R.count_incomplete <- state.res.R.count_incomplete + 1;
+           let tbl = state.res.R.todo_reasons in
+           let prev = try Hashtbl.find tbl reason with Not_found -> 0 in
+           Hashtbl.replace tbl reason (prev + 1);
+           state.step state.test.name state.test input FalseAssumption;
+           CR_continue
+         | None ->
+           let bt = Printexc.get_backtrace () in
+           handle_exn state input_tree e bt)
       | e ->
         let bt = Printexc.get_backtrace () in
         handle_exn state input_tree e bt
@@ -1995,7 +2006,7 @@ module Test = struct
       cur_max_fail=factor*cell.max_fail;
       res = {R.
               state=R.Success; count=0; count_gen=0; count_incomplete=0;
-              tbd_reasons=Hashtbl.create 8;
+              todo_reasons=Hashtbl.create 8;
               collect_tbl=lazy (Hashtbl.create 10);
               warnings=[];
               stats_tbl= List.map (fun stat -> stat, Hashtbl.create 10) cell.stats;

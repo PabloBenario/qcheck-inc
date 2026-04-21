@@ -94,11 +94,11 @@ let rec subst_incom x s t =
   | Abs (y, _) ->
       if x = y then t
       else
-        raise (QCheck2.TBD "subst_incom: Abs case")
+        failwith "TODO:subst_incom: Abs case"
 
 (* 3. MIXED: partial implementation with BOTH a real bug AND incomplete branches.
    - Var / Con / App / (x=y) Abs  → handled correctly (passes)
-   - Abs (y, Abs _)                → NOT implemented yet, raises TBD
+   - Abs (y, Abs _)                → NOT implemented yet, raises failwith "TODO:..."
    - Abs (y, non-Abs body)         → naive recursion, BUG: captures y if y ∈ FV(s) *)
 let rec subst_mixed x s t =
   match t with
@@ -109,11 +109,11 @@ let rec subst_mixed x s t =
       if x = y then t
       else
         (match body with
-         | Abs _ -> raise (QCheck2.TBD "subst_mixed: nested Abs")
+         | Abs _ -> failwith "TODO:subst_mixed: nested Abs"
          | _     -> Abs (y, subst_mixed x s body))
 
 
-(* 4. Virtually the same as 3. but we see it throws TBD in
+(* 4. Virtually the same as 3. but we see it throws failwith "TODO:..." in
    two different parts and we will see what happens *)
 let rec subst_2_incomplete x s t =
   match t with
@@ -125,9 +125,9 @@ let rec subst_2_incomplete x s t =
       else
         (match body with
          | Abs _ -> incr incomplete_counter;
-                    raise (QCheck2.TBD "subst_2_incomplete: nested Abs")
+                    failwith "TODO:subst_2_incomplete: nested Abs"
          | App _ -> incr incomplete_counter;
-                    raise (QCheck2.TBD "subst_2_incomplete: App in Abs body")
+                    failwith "TODO:subst_2_incomplete: App in Abs body"
          | _     -> Abs (y, subst_2_incomplete x s body))
 
 
@@ -373,7 +373,7 @@ let run_direct (test : QCheck2.Test.t) : unit =
           tname passed n_fails msg (Printexc.to_string exn)
 
 (* Analogous to run_direct, but uses the incremental PBT feature:
-   TBD raises are counted and reported instead of crashing.
+   failwith "TODO:..." raises are counted and reported instead of crashing.
    Prints both the pass count and the incomplete count on every outcome
    (pass, fail, error), so a mixed run shows all three statistics. *)
 let run_direct_incomplete (test : QCheck2.Test.t) : unit =
@@ -391,25 +391,25 @@ let run_direct_incomplete (test : QCheck2.Test.t) : unit =
        | _ -> 0
      in
      let passed = count - n_fails in
-     let tbd_reasons = QCheck2.TestResult.get_tbd_reasons res in
-     let print_tbd_reasons () =
+     let todo_reasons = QCheck2.TestResult.get_todo_reasons res in
+     let print_todo_reasons () =
        List.iter (fun (reason, count) ->
-         Printf.printf "  TBD: %s (%d times)\n" reason count
-       ) tbd_reasons
+         Printf.printf "  TODO: %s (%d times)\n" reason count
+       ) todo_reasons
      in
      match QCheck2.Test.check_result cell res with
      | () ->
         Printf.printf "PASS (passed: %d, incomplete cases: %d)\n"
           passed incomplete;
-        print_tbd_reasons ()
+        print_todo_reasons ()
      | exception QCheck2.Test.Test_fail (tname, msgs) ->
           Printf.printf "FAIL [%s] (passed: %d, failed: %d, incomplete cases: %d):\n%s\n"
             tname passed n_fails incomplete (String.concat "\n" msgs);
-          print_tbd_reasons ()
+          print_todo_reasons ()
      | exception QCheck2.Test.Test_error (tname, msg, exn, _bt) ->
         Printf.printf "ERROR [%s] (passed: %d, failed: %d, incomplete cases: %d): %s\n%s"
           tname passed n_fails incomplete msg (Printexc.to_string exn);
-        print_tbd_reasons ()
+        print_todo_reasons ()
 
 
 
@@ -421,4 +421,4 @@ let () =
   run_direct_incomplete prop_subst_free_no_var_capture_open_subst_mixed;
   incomplete_counter := 0;
   run_direct_incomplete prop_subst_free_no_var_capture_open_subst_2_incomplete;
-  Printf.printf "(global counter: TBD raised %d times)\n" !incomplete_counter
+  Printf.printf "(global counter: TODO raised %d times)\n" !incomplete_counter

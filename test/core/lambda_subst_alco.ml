@@ -92,11 +92,11 @@ let rec subst_incom x s t =
   | Abs (y, _) ->
       if x = y then t
       else
-        raise (QCheck2.TBD "subst_incom: Abs case")
+        failwith "TODO:subst_incom: Abs case"
 
 (* 3. MIXED: partial implementation with BOTH a real bug AND incomplete branches.
    - Var / Con / App / (x=y) Abs  → handled correctly (passes)
-   - Abs (y, Abs _)                → NOT implemented yet, raises TBD
+   - Abs (y, Abs _)                → NOT implemented yet, raises failwith "TODO:..."
    - Abs (y, non-Abs body)         → naive recursion, BUG: captures y if y ∈ FV(s) *)
 let rec subst_mixed x s t =
   match t with
@@ -107,11 +107,11 @@ let rec subst_mixed x s t =
       if x = y then t
       else
         (match body with
-         | Abs _ -> raise (QCheck2.TBD "subst_mixed: nested Abs")
+         | Abs _ -> failwith "TODO:subst_mixed: nested Abs"
          | _     -> Abs (y, subst_mixed x s body))
 
 
-(* 4. Virtually the same as 3. but we see it throws TBD in
+(* 4. Virtually the same as 3. but we see it throws failwith "TODO:..." in
    two different parts and we will see what happens *)
 let rec subst_2_incomplete x s t =
   match t with
@@ -122,8 +122,8 @@ let rec subst_2_incomplete x s t =
       if x = y then t
       else
         (match body with
-         | Abs _ -> raise (QCheck2.TBD "subst_2_incomplete: nested Abs")
-         | App _ -> raise (QCheck2.TBD "subst_2_incomplete: App in Abs body")
+         | Abs _ -> failwith "TODO:subst_2_incomplete: nested Abs"
+         | App _ -> failwith "TODO:subst_2_incomplete: App in Abs body"
          | _     -> Abs (y, subst_2_incomplete x s body))
 
 

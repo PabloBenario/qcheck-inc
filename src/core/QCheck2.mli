@@ -1633,27 +1633,31 @@ val assume_fail : unit -> 'a
     @since 0.5.1
 *)
 
-(** {1 Incremental PBT} *)
+(** {1 Incremental PBT}
 
-exception TBD of string
-(** [TBD reason] should be raised in branches of the system under test that
-    are not yet implemented. The [reason] string describes which part of the
-    code is incomplete (e.g. ["Abs case of subst not yet handled"]).
+    Raise [Failure] via [failwith] with a message starting with ["TODO:"]
+    to signal not-yet-implemented code. Whatever follows ["TODO:"] is
+    captured as the reason (possibly empty) and tracked per-reason in
+    {!TestResult}.
 
-    When a test input causes [TBD] to be raised, QCheck2 counts it as an
-    incomplete case (neither pass nor fail), skips shrinking, and continues
-    testing the remaining inputs. This allows property-based testing to validate
-    the already-implemented portions of code during incremental development.
+    When a test input causes such a [Failure] to be raised, QCheck2 counts
+    it as an incomplete case (neither pass nor fail), skips shrinking, and
+    continues testing the remaining inputs. This allows property-based
+    testing to validate the already-implemented portions of code during
+    incremental development.
+
+    A [Failure] whose message does not start with ["TODO:"] is treated as
+    a normal test error.
 
     Usage:
     {[
       let rec subst x s = function
         | Var y -> if x = y then s else Var y
-        | Abs _ -> raise (QCheck2.TBD "Abs case not yet implemented")
+        | Abs _ -> failwith "TODO:Abs case not yet implemented"
     ]}
 
     @see <#TestResult> {!TestResult.get_count_incomplete} to read how many cases were skipped.
-    @see <#TestResult> {!TestResult.get_tbd_reasons} to read the unique TBD reasons and their counts.
+    @see <#TestResult> {!TestResult.get_todo_reasons} to read the unique TODO reasons and their counts.
 *)
 
 (** {1 Tests}
@@ -1720,12 +1724,13 @@ module TestResult : sig
 
   val get_count_incomplete : _ t -> int
   (** [get_count_incomplete t] returns the number of cases that raised
-      {!TBD} and were skipped. *)
+      [Failure] via [failwith "TODO:..."] and were skipped. *)
 
-  val get_tbd_reasons : _ t -> (string * int) list
-  (** [get_tbd_reasons t] returns a list of [(reason, count)] pairs, where each
-      [reason] is a unique string passed to {!TBD} during the test run, and
-      [count] is how many times that particular reason was encountered. *)
+  val get_todo_reasons : _ t -> (string * int) list
+  (** [get_todo_reasons t] returns a list of [(reason, count)] pairs, where each
+      [reason] is a unique string that followed ["TODO:"] in a [failwith] message
+      during the test run, and [count] is how many times that particular reason
+      was encountered. *)
 
   val get_collect : _ t -> (string,int) Hashtbl.t option
   (** [get_collect t] returns the repartition of generated values.

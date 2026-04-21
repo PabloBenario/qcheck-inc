@@ -27,8 +27,9 @@ val to_alcotest :
     you can control the behavior of QCheck tests using optional parameters that
     behave in the same way as the parameters of {!QCheck_base_runner.run_tests}.
 
-    When the tested property raises {!QCheck2.TBD}, incomplete case counts and
-    per-reason breakdowns are printed to stdout before the result is checked.
+    When the tested property raises [Failure] via [failwith "TODO:..."],
+    incomplete case counts and per-reason breakdowns are printed to stdout
+    before the result is checked.
 
     @since 0.9
     @since 0.9 parameters [verbose], [long], [rand]

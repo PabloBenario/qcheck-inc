@@ -57,11 +57,11 @@ let to_alcotest
     let res = T.check_cell ~long ~call ~handler ~rand cell in
     let incomplete = Q.TestResult.get_count_incomplete res in
     if incomplete > 0 then begin
-      let tbd_reasons = Q.TestResult.get_tbd_reasons res in
+      let todo_reasons = Q.TestResult.get_todo_reasons res in
       Printf.printf "  incomplete cases: %d\n" incomplete;
       List.iter (fun (reason, count) ->
-        Printf.printf "    TBD: %s (%d times)\n" reason count
-      ) tbd_reasons
+        Printf.printf "    TODO: %s (%d times)\n" reason count
+      ) todo_reasons
     end;
     T.check_result cell res
   in
