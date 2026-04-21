@@ -45,22 +45,33 @@ Design constraints carried over from the thesis (§5.3):
 
 ## 2. Repository Architecture
 
-This is the full QCheck monorepo. The changes live entirely in two source files
-and one test file:
+This is the full QCheck monorepo. The changes are split across the core
+QCheck2 library, the Alcotest adapter, the thesis-experiment test files,
+and a pair of out-of-band files that describe the patched alcotest
+dependency:
 
-| File | Role |
-|------|------|
-| `src/core/QCheck2.ml` | The core QCheck2 library — **modified** to support the third verdict via a `TODO:`-prefix convention over `failwith`. |
-| `src/core/QCheck2.mli` | The public interface — **modified** to expose `get_count_incomplete` and `get_todo_reasons`. |
-| `src/alcotest/QCheck_alcotest.ml` | The Alcotest adapter — **modified** to print incomplete counts and the per-reason TODO breakdown before delegating to `check_result`. |
-| `src/alcotest/QCheck_alcotest.mli` | The Alcotest public interface — **modified** to document the TODO-aware behaviour of `to_alcotest`. |
-| `test/core/lambda_subst.ml` | The thesis experiment: lambda calculus substitution tested with incremental PBT (direct runner). |
-| `test/core/lambda_subst_alco.ml` | Alcotest variant of the thesis experiment: same four substitution implementations exercised via `QCheck_alcotest`. |
-| `test/core/dune` | Added `lambda_subst` and `lambda_subst_alco` executable stanzas. |
+| File                                 | Role                                                                                                                                                                            |
+|--------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `src/core/QCheck2.ml`                | The core QCheck2 library — **modified** to support the third verdict via a `TODO:`-prefix convention over `failwith`.                                                           |
+| `src/core/QCheck2.mli`               | The public interface — **modified** to expose `get_count_incomplete` and `get_todo_reasons`.                                                                                    |
+| `src/alcotest/QCheck_alcotest.ml`    | The Alcotest adapter — **modified** to print incomplete counts and the per-reason TODO breakdown, and to raise `Alcotest.incomplete` on successful-but-incomplete runs so Alcotest renders the `[INCOMPLETE]` tag. |
+| `src/alcotest/QCheck_alcotest.mli`   | The Alcotest public interface — **modified** to document the TODO-aware behaviour and the `[INCOMPLETE]` tag.                                                                   |
+| `test/core/lambda_subst.ml`          | The thesis experiment: lambda calculus substitution tested with incremental PBT (direct runner).                                                                                |
+| `test/core/lambda_subst_alco.ml`     | Alcotest variant of the thesis experiment: same four substitution implementations exercised via `QCheck_alcotest`.                                                              |
+| `test/core/dune`                     | Added `lambda_subst` and `lambda_subst_alco` executable stanzas.                                                                                                                |
+| `ALCOTEST.md`                        | End-to-end setup reference for the patched alcotest dependency (sibling clone at `../alcotest/` + `opam pin`).                                                                  |
+| `patches/alcotest-incomplete.patch`  | The alcotest patch against tag `1.9.1`, shipped so the feature is reproducible from scratch without assuming any specific `../alcotest/` is already present.                    |
 
 All other modules (ounit integration, PPX deriver, existing tests) are
 **untouched**. Consumers that never raise `failwith "TODO:..."` observe
 identical behavior to upstream QCheck2.
+
+A runtime dependency of the Alcotest pipeline lives outside this repo:
+a sibling clone of `mirage/alcotest` at `../alcotest/` on branch
+`qcheck-inc-incomplete` (based on tag 1.9.1), consumed via
+`opam pin add alcotest ../alcotest --kind=path`. See §11 and `ALCOTEST.md`
+for setup details; see `_pablo/parallel-dev-of-qcheck-inc-and-alcotest.md`
+for the rationale and a detailed trace of the opam-pin mechanics.
 
 ---
 
@@ -634,19 +645,65 @@ the developer exactly which branch was hit.
 
 ---
 
-## 11. How to Build and Run
+## 11. Building, Running, and Developing
 
-### Prerequisites
+### 11.1 Prerequisites
 
-- OCaml compiler (tested with 4.x and 5.x; minimum is 4.08)
-- `dune` build system
-- The project uses a local opam switch in `_opam/`. Activate it before building:
+- OCaml compiler (tested with 4.x and 5.x; minimum is 4.08).
+- `dune` build system.
+- A local opam switch in `_opam/` (the project ships with one).
+- **A patched copy of alcotest** at `../alcotest/` (sibling of this repo),
+  on branch `qcheck-inc-incomplete` based on tag `1.9.1`. The patch adds
+  the `[INCOMPLETE]` outcome tag that the `QCheck_alcotest` bridge relies
+  on. The patch is small (≈ 25 lines across 7 files under
+  `src/alcotest-engine/`) and is shipped in this repo as a backup at
+  `patches/alcotest-incomplete.patch`.
+
+See `ALCOTEST.md` at the repo root for the end-to-end setup reference and
+`_pablo/parallel-dev-of-qcheck-inc-and-alcotest.md` for the rationale and
+a detailed trace of the opam-pin mechanics.
+
+### 11.2 First-time setup
+
+Activate the local switch:
 
 ```bash
 eval $(opam env --switch=.)
 ```
 
-### Running the Direct-Runner Experiment
+If `../alcotest/` does not yet exist, clone and patch it:
+
+```bash
+git clone git@github.com:mirage/alcotest.git ../alcotest
+git -C ../alcotest checkout 1.9.1
+git -C ../alcotest switch -c qcheck-inc-incomplete
+git -C ../alcotest am ./patches/alcotest-incomplete.patch
+```
+
+Pin the local opam switch at the sibling clone:
+
+```bash
+opam pin add alcotest ../alcotest --kind=path --yes
+```
+
+Verify the pin:
+
+```bash
+opam pin list | grep alcotest
+# alcotest.1.9.1  rsync  file:///…/experimental/alcotest
+```
+
+Then build:
+
+```bash
+dune build
+```
+
+### 11.3 Running the Direct-Runner Experiment
+
+This runner does not depend on alcotest — it uses QCheck2's own runner
+plumbing. Useful as a sanity check that the `TODO:`-prefix machinery in
+`src/core/QCheck2.ml` still works regardless of the alcotest pin.
 
 ```bash
 dune exec test/core/lambda_subst.exe
@@ -691,32 +748,102 @@ FAIL [...] (passed: N, failed: 1, incomplete cases: K):
   App bodies raise TODO-failures with distinct reasons (FAIL with incomplete
   > 0, two separate TODO reasons reported).
 
-### Running the Alcotest Experiment
+### 11.4 Running the Alcotest Experiment
+
+This runner depends on the patched alcotest being pinned (§11.1, §11.2).
 
 ```bash
 dune exec test/core/lambda_subst_alco.exe
 ```
 
-This passes the same four substitution implementations (and the
-generator/shrinker validity tests) through the `QCheck_alcotest.to_alcotest`
-adapter. Alcotest formats each test case as a pass/fail entry; when any
-incomplete cases were recorded the adapter prints them to stdout **before**
-Alcotest prints its verdict line:
+The same four substitution implementations (plus the generator/shrinker
+validity tests) are fed through `QCheck_alcotest.to_alcotest`. Each test
+case shows one of four status tags in the per-test status column:
 
 ```
-  incomplete cases: <K>
-    TODO: <reason> (<count> times)
-    ...
-[FAIL] Capture Avoidance (correct subst but incomplete)
+  [OK]          generators            0   Generator Validity (Well-Scoped).
+  [OK]          generators            1   Shrinker Validity.
+> [FAIL]        substitution          0   Capture Avoidance (naive/buggy subst).
+  [INCOMPLETE]  substitution          1   Capture Avoidance (correct subst bu...
+  [FAIL]        substitution          2   Capture Avoidance (mixed: buggy + i...
+  [FAIL]        substitution          3   Capture Avoidance (throws incomplet...
 ```
 
-`FAIL` here is the Alcotest result for the test case that contained the bug
-or was entirely incomplete; a purely-incomplete run where no real failure
-occurred passes Alcotest (the underlying QCheck2 state is `R.Success`). Note
-that Alcotest captures per-test stdout into log files under
-`_build/_tests/.../substitution.NNN.output` for tests that surface output
-via its normal verdict pipeline, so the `incomplete cases:` lines for
-otherwise-passing tests are visible in those log files.
+- `[OK]` (green) — no real failure, no incomplete cases.
+- `[FAIL]` (red) — a real QCheck failure was found (takes priority over
+  incomplete).
+- `[INCOMPLETE]` (yellow) — no real failure, but at least one case raised
+  `failwith "TODO:..."`. Does **not** count toward the nonzero exit code;
+  does count toward the "N tests run" summary total.
+- `[SKIP]` — inherited from upstream alcotest; not produced by this repo.
+
+When `[FAIL]` or `[INCOMPLETE]` applies, the adapter additionally prints
+`incomplete cases: <K>` and the per-reason TODO breakdown to stdout before
+alcotest's verdict line. That extra output is captured into per-test log
+files under `_build/_tests/.../substitution.NNN.output`.
+
+### 11.5 Development workflow
+
+Two sides can be edited independently: this repo for the QCheck2 and bridge
+logic, and `../alcotest/` for the alcotest patch. The `opam pin` setup
+(§11.2) means edits in `../alcotest/` are picked up on the next `dune build`
+inside this repo without any commit dance — opam rsyncs the working tree
+whenever it re-installs the pinned package.
+
+#### 11.5.1 Iterating on this repo
+
+Standard edit/build/run loop. No special handling beyond having `../alcotest/`
+checked out to `qcheck-inc-incomplete`:
+
+```bash
+$EDITOR src/core/QCheck2.ml           # or any other file in this repo
+dune build
+dune exec test/core/lambda_subst_alco.exe
+```
+
+#### 11.5.2 Iterating on the alcotest patch
+
+```bash
+git -C ../alcotest branch --show-current     # must say qcheck-inc-incomplete
+$EDITOR ../alcotest/src/alcotest-engine/pp.ml
+cd qcheck-inc                                # already there, just for context
+dune build                                   # opam rsyncs ../alcotest/ and rebuilds
+dune exec test/core/lambda_subst_alco.exe
+```
+
+When the alcotest changes are ready, commit them inside `../alcotest/` and
+refresh the backup patch so this repo stays self-contained:
+
+```bash
+git -C ../alcotest commit -am "<description>"
+git -C ../alcotest format-patch 1.9.1..qcheck-inc-incomplete --stdout \
+  > patches/alcotest-incomplete.patch
+git add patches/alcotest-incomplete.patch
+git commit -m "Refresh alcotest patch"
+```
+
+#### 11.5.3 The branch-guard gotcha
+
+The opam pin reflects `../alcotest/`'s working tree, not a specific ref. If
+`../alcotest/` is checked out to `main` (because you were pulling upstream),
+`dune build` will link against unpatched alcotest and any use of
+`Alcotest.incomplete` will fail to compile. Guard before building:
+
+```bash
+git -C ../alcotest branch --show-current      # expect qcheck-inc-incomplete
+git -C ../alcotest switch qcheck-inc-incomplete   # if needed
+```
+
+#### 11.5.4 Reverting to stock alcotest
+
+```bash
+opam pin remove alcotest --yes
+```
+
+Restores the registry version. The `QCheck_alcotest` bridge then fails to
+compile (it calls `Alcotest.incomplete`, which stock alcotest does not
+export). Re-pin with `opam pin add alcotest ../alcotest --kind=path --yes`
+to restore the `[INCOMPLETE]` tag support.
 
 ---
 
@@ -811,11 +938,13 @@ it never returns the `TestResult.t`, the `count_incomplete` counter and
 the Alcotest output gave no indication that any incomplete cases had been
 encountered.
 
-### 14.2 The Current Implementation: Two-Phase Result Handling
+### 14.2 The Current Implementation: Print, Check, and Tag
 
 The run body calls `check_cell` directly, inspects the result, prints the
-incomplete-case information if present, and only then raises via
-`check_result`:
+incomplete-case information if present, delegates the verdict-raising to
+`check_result`, and — when the run passed but at least one incomplete
+case occurred — raises `Alcotest.incomplete` so the Alcotest runner tags
+the case with `[INCOMPLETE]` instead of `[OK]`:
 
 ```ocaml
 let run () =
@@ -829,41 +958,58 @@ let run () =
       Printf.printf "    TODO: %s (%d times)\n" reason count
     ) todo_reasons
   end;
-  T.check_result cell res
+  T.check_result cell res;
+  if incomplete > 0 then
+    Alcotest.incomplete (Printf.sprintf "%d incomplete case(s)" incomplete)
 ```
 
-Four observations about the code:
+Five observations about the code:
 
 1. **`check_cell` instead of `check_cell_exn`.** `check_cell` runs the
    campaign and returns the `TestResult.t` without raising. This gives the
    adapter a window to read `count_incomplete` and `todo_reasons` before
    control passes to the Alcotest framework.
-2. **Conditional output.** The TODO block is printed only when
+2. **Conditional stdout output.** The TODO block is printed only when
    `incomplete > 0`, so runs with no incomplete cases produce no extra
    output — identical to the upstream behavior.
-3. **`check_result` reproduces the raising contract.** `T.check_result cell
-   res` inspects `res.state` and raises `Test_fail` or `Test_error` exactly
-   as `check_cell_exn` would have. The visible Alcotest verdict is
-   unchanged; the only addition is the extra stdout lines printed
-   beforehand.
-4. **Output ordering.** Because `Printf.printf` flushes to stdout and
-   Alcotest's own verdict line goes to the same stream, the TODO lines
-   appear immediately before the `[FAIL]` / `[OK]` line for that test case.
+3. **`check_result` preserves the failure-raising contract.** `T.check_result
+   cell res` inspects `res.state` and raises `Test_fail` or `Test_error`
+   exactly as `check_cell_exn` would have. If the run contained a real
+   QCheck failure, this raise fires first and Alcotest tags the test
+   `[FAIL]` — the following `Alcotest.incomplete` call is unreachable.
+4. **`Alcotest.incomplete` emits the `[INCOMPLETE]` tag.** Reached only
+   when `check_result` returned successfully (no real failure) *and*
+   `incomplete > 0`. The Alcotest runner catches the exception inside
+   `protect_test` and records an `` `Incomplete _`` outcome, which is
+   rendered in yellow as `[INCOMPLETE]`, does not count toward failures,
+   and does not affect the exit code. Priority overall is FAIL > INCOMPLETE
+   > OK.
+5. **Requires the patched alcotest.** `Alcotest.incomplete` and the
+   matching runtime machinery do not exist in stock alcotest; they are
+   additions in the patch living at `../alcotest/` on branch
+   `qcheck-inc-incomplete` (based on tag 1.9.1). With a stock-alcotest
+   pin or no pin, this bridge fails to compile. See `ALCOTEST.md` for the
+   setup and `patches/alcotest-incomplete.patch` for the reproducible
+   patch against the 1.9.1 tag.
 
 ### 14.3 Documentation in `QCheck_alcotest.mli`
 
-A paragraph in the `to_alcotest` docstring describes the behavior:
+A paragraph in the `to_alcotest` docstring describes both the stdout output
+and the tag:
 
 ```ocaml
 (** ...
-    When the tested property raises [Failure] via [failwith "TODO:..."],
-    incomplete case counts and per-reason breakdowns are printed to stdout
-    before the result is checked.
+    When the tested property raises a [Failure] with a ["TODO:..."] message
+    (via [failwith]), incomplete case counts and per-reason breakdowns are
+    printed to stdout before the result is checked, and the test case is
+    tagged [\[INCOMPLETE\]] in the alcotest output (provided the patched
+    alcotest exposing {!Alcotest.incomplete} is available).
     ... *)
 ```
 
-This makes the behavior discoverable from the interface file without
-requiring users to read the implementation.
+This makes both the behavior and the patched-alcotest requirement
+discoverable from the interface file without requiring users to read the
+implementation.
 
 ### 14.4 The Alcotest Test File: `test/core/lambda_subst_alco.ml`
 
@@ -925,35 +1071,52 @@ The test binary is registered in `test/core/dune` as:
 
 ### 14.5 Before vs After: Alcotest Incomplete Visibility
 
-| Aspect                          | Before                   | After                                  |
-|---------------------------------|--------------------------|----------------------------------------|
-| API called                      | `T.check_cell_exn`       | `T.check_cell` + `T.check_result`      |
-| `TestResult.t` accessible       | No (consumed internally) | Yes (inspected before raising)         |
-| Incomplete count printed        | No                       | Yes, when `count_incomplete > 0`       |
-| Per-reason breakdown printed    | No                       | Yes, one line per distinct TODO reason |
-| Alcotest verdict                | Unchanged                | Unchanged                              |
-| Backward compat (no incomplete) | N/A                      | Identical output — no extra lines      |
+| Aspect                           | Before                   | After                                                                 |
+|----------------------------------|--------------------------|-----------------------------------------------------------------------|
+| API called                       | `T.check_cell_exn`       | `T.check_cell` + `T.check_result` + conditional `Alcotest.incomplete` |
+| `TestResult.t` accessible        | No (consumed internally) | Yes (inspected before raising)                                        |
+| Incomplete count printed         | No                       | Yes, when `count_incomplete > 0`                                      |
+| Per-reason breakdown printed     | No                       | Yes, one line per distinct TODO reason                                |
+| Per-test status tag              | `[OK]` or `[FAIL]`       | `[OK]` / `[FAIL]` / `[INCOMPLETE]` (tri-valued)                       |
+| Exit-code impact of incomplete   | 0                        | 0 (unchanged — `[INCOMPLETE]` is not a failure)                       |
+| Summary "N tests run" counts     | Incomplete counted as OK | Incomplete counted in N, separate from failures                       |
+| Alcotest verdict on real failure | `[FAIL]`                 | `[FAIL]` (priority FAIL > INCOMPLETE > OK)                            |
+| Backward compat (no incomplete)  | N/A                      | Identical output — no extra lines, no tag change                      |
+| Alcotest-side requirement        | Stock alcotest           | Patched alcotest (`../alcotest/`, branch `qcheck-inc-incomplete`)     |
 
 ---
 
 ## 15. Summary of Touched Locations
 
-| File                               | Change                                                                                                                                           |
-|------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
-| `src/core/QCheck2.ml`              | `todo_reason` prefix-extraction helper in `module Test`                                                                                          |
-| `src/core/QCheck2.ml`              | `count_incomplete` field and `todo_reasons` hashtable in `TestResult.t`                                                                          |
-| `src/core/QCheck2.ml`              | `get_count_incomplete` and `get_todo_reasons` accessors                                                                                          |
-| `src/core/QCheck2.ml`              | Skip TODO-prefixed `Failure` candidates during shrinking (two locations)                                                                         |
-| `src/core/QCheck2.ml`              | Runner arm: catch `Failure msg`, dispatch on `todo_reason`, record count + reason, continue; fall through to `handle_exn` for non-TODO `Failure` |
-| `src/core/QCheck2.ml`              | Suppress "too many discards" warning when `count_incomplete > 0`                                                                                 |
-| `src/core/QCheck2.ml`              | Initialize `count_incomplete = 0` and `todo_reasons` in `check_cell`                                                                             |
-| `src/core/QCheck2.mli`             | Doc-only `{1 Incremental PBT}` section describing the `failwith "TODO:..."` convention                                                           |
-| `src/core/QCheck2.mli`             | Expose `get_count_incomplete` and `get_todo_reasons` in `TestResult`                                                                             |
-| `src/alcotest/QCheck_alcotest.ml`  | `to_alcotest` uses `check_cell` + `check_result`; prints incomplete breakdown before raising                                                     |
-| `src/alcotest/QCheck_alcotest.mli` | Document TODO-aware behaviour in the `to_alcotest` docstring                                                                                     |
-| `test/core/dune`                   | `lambda_subst` and `lambda_subst_alco` executable stanzas                                                                                        |
-| `test/core/lambda_subst.ml`        | Thesis experiment: 4 substitutions, generators, property, direct runners                                                                         |
-| `test/core/lambda_subst_alco.ml`   | Alcotest variant of the thesis experiment (same 4 implementations via `QCheck_alcotest`)                                                         |
+### 15.1 Inside this repo
 
-All other modules are untouched; consumers that never raise
-`failwith "TODO:..."` observe identical behavior to upstream QCheck2.
+| File                                 | Change                                                                                                                                                         |
+|--------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `src/core/QCheck2.ml`                | `todo_reason` prefix-extraction helper in `module Test`                                                                                                        |
+| `src/core/QCheck2.ml`                | `count_incomplete` field and `todo_reasons` hashtable in `TestResult.t`                                                                                        |
+| `src/core/QCheck2.ml`                | `get_count_incomplete` and `get_todo_reasons` accessors                                                                                                        |
+| `src/core/QCheck2.ml`                | Skip TODO-prefixed `Failure` candidates during shrinking (two locations)                                                                                       |
+| `src/core/QCheck2.ml`                | Runner arm: catch `Failure msg`, dispatch on `todo_reason`, record count + reason, continue; fall through to `handle_exn` for non-TODO `Failure`               |
+| `src/core/QCheck2.ml`                | Suppress "too many discards" warning when `count_incomplete > 0`                                                                                               |
+| `src/core/QCheck2.ml`                | Initialize `count_incomplete = 0` and `todo_reasons` in `check_cell`                                                                                           |
+| `src/core/QCheck2.mli`               | Doc-only `{1 Incremental PBT}` section describing the `failwith "TODO:..."` convention                                                                         |
+| `src/core/QCheck2.mli`               | Expose `get_count_incomplete` and `get_todo_reasons` in `TestResult`                                                                                           |
+| `src/alcotest/QCheck_alcotest.ml`    | `to_alcotest` uses `check_cell` + `check_result`; prints incomplete breakdown before raising; raises `Alcotest.incomplete` on successful-but-incomplete runs to emit the `[INCOMPLETE]` tag |
+| `src/alcotest/QCheck_alcotest.mli`   | Document TODO-aware behaviour *and* the `[INCOMPLETE]` tag + patched-alcotest requirement in the `to_alcotest` docstring                                       |
+| `test/core/dune`                     | `lambda_subst` and `lambda_subst_alco` executable stanzas                                                                                                      |
+| `test/core/lambda_subst.ml`          | Thesis experiment: 4 substitutions, generators, property, direct runners                                                                                       |
+| `test/core/lambda_subst_alco.ml`     | Alcotest variant of the thesis experiment (same 4 implementations via `QCheck_alcotest`)                                                                       |
+| `ALCOTEST.md`                        | End-to-end setup reference for the external patched alcotest (sibling clone + `opam pin`)                                                                      |
+| `patches/alcotest-incomplete.patch`  | Consolidated patch against alcotest `1.9.1`, shipped in-repo so the alcotest changes are reproducible from scratch                                             |
+
+### 15.2 Outside this repo (runtime dependency)
+
+| Location                               | Role                                                                                                             |
+|----------------------------------------|------------------------------------------------------------------------------------------------------------------|
+| `../alcotest/` (sibling clone)         | Working tree consumed via `opam pin add alcotest ../alcotest --kind=path`; must be on branch `qcheck-inc-incomplete` at build time |
+| `../alcotest/src/alcotest-engine/…`    | 7 files, ≈ 25 lines added: new `Incomplete` exception, `` `Incomplete _`` variant, printer branches, helper      |
+
+All other modules in this repo are untouched; consumers that never raise
+`failwith "TODO:..."` observe identical behavior to upstream QCheck2, and
+(as long as they don't call `Alcotest.incomplete` directly) observe
+identical behavior to upstream alcotest.
