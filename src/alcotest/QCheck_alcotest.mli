@@ -30,8 +30,10 @@ val to_alcotest :
     When the tested property raises a [Failure] with a ["TODO:..."] message
     (via [failwith]), incomplete case counts and per-reason breakdowns are
     printed to stdout before the result is checked, and the test case is
-    tagged [\[INCOMPLETE\]] in the alcotest output (provided the patched
-    alcotest exposing {!Alcotest.incomplete} is available).
+    tagged [\[INCOMPLETE\]] in the alcotest output. The [\[INCOMPLETE\]]
+    tag requires the patched alcotest whose [protect_test] recognises the
+    ["TODO:"] prefix on [Failure] messages (see this repo's [ALCOTEST.md]);
+    against stock alcotest, the same tests are tagged [\[FAIL\]] instead.
 
     @since 0.9
     @since 0.9 parameters [verbose], [long], [rand]

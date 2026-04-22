@@ -54,7 +54,7 @@ dependency:
 |--------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `src/core/QCheck2.ml`                | The core QCheck2 library — **modified** to support the third verdict via a `TODO:`-prefix convention over `failwith`.                                                           |
 | `src/core/QCheck2.mli`               | The public interface — **modified** to expose `get_count_incomplete` and `get_todo_reasons`.                                                                                    |
-| `src/alcotest/QCheck_alcotest.ml`    | The Alcotest adapter — **modified** to print incomplete counts and the per-reason TODO breakdown, and to raise `Alcotest.incomplete` on successful-but-incomplete runs so Alcotest renders the `[INCOMPLETE]` tag. |
+| `src/alcotest/QCheck_alcotest.ml`    | The Alcotest adapter — **modified** to print incomplete counts and the per-reason TODO breakdown, and to re-raise via `failwith "TODO: ..."` on successful-but-incomplete runs so patched Alcotest renders the `[INCOMPLETE]` tag. |
 | `src/alcotest/QCheck_alcotest.mli`   | The Alcotest public interface — **modified** to document the TODO-aware behaviour and the `[INCOMPLETE]` tag.                                                                   |
 | `test/core/lambda_subst.ml`          | The thesis experiment: lambda calculus substitution tested with incremental PBT (direct runner).                                                                                |
 | `test/core/lambda_subst_alco.ml`     | Alcotest variant of the thesis experiment: same four substitution implementations exercised via `QCheck_alcotest`.                                                              |
@@ -849,8 +849,10 @@ git commit -m "Refresh alcotest patch"
 
 The opam pin reflects `../alcotest/`'s working tree, not a specific ref. If
 `../alcotest/` is checked out to `main` (because you were pulling upstream),
-`dune build` will link against unpatched alcotest and any use of
-`Alcotest.incomplete` will fail to compile. Guard before building:
+`dune build` will link against unpatched alcotest and tests that use the
+`failwith "TODO:..."` convention will silently be tagged `[FAIL]` instead
+of `[INCOMPLETE]` (and the exit code will flip from 0 to 1 for runs that
+only contain incomplete cases). Guard before building:
 
 ```bash
 git -C ../alcotest branch --show-current      # expect qcheck-inc-incomplete
@@ -863,10 +865,12 @@ git -C ../alcotest switch qcheck-inc-incomplete   # if needed
 opam pin remove alcotest --yes
 ```
 
-Restores the registry version. The `QCheck_alcotest` bridge then fails to
-compile (it calls `Alcotest.incomplete`, which stock alcotest does not
-export). Re-pin with `opam pin add alcotest ../alcotest --kind=path --yes`
-to restore the `[INCOMPLETE]` tag support.
+Restores the registry version. The `QCheck_alcotest` bridge still compiles
+(it only uses `failwith` — always in stdlib — no alcotest-specific
+identifier), but stock alcotest's `protect_test` treats every `Failure` as
+`[FAIL]`, so incomplete-only runs would now exit 1 instead of 0. Re-pin
+with `opam pin add alcotest ../alcotest --kind=path --yes` to restore the
+`[INCOMPLETE]` tag support.
 
 ---
 
@@ -966,8 +970,9 @@ encountered.
 The run body calls `check_cell` directly, inspects the result, prints the
 incomplete-case information if present, delegates the verdict-raising to
 `check_result`, and — when the run passed but at least one incomplete
-case occurred — raises `Alcotest.incomplete` so the Alcotest runner tags
-the case with `[INCOMPLETE]` instead of `[OK]`:
+case occurred — raises `Failure` with a `"TODO:..."` message via
+`failwith`. Patched alcotest's `protect_test` recognises that prefix and
+tags the case `[INCOMPLETE]` instead of `[OK]`:
 
 ```ocaml
 let run () =
@@ -983,7 +988,7 @@ let run () =
   end;
   T.check_result cell res;
   if incomplete > 0 then
-    Alcotest.incomplete (Printf.sprintf "%d incomplete case(s)" incomplete)
+    failwith (Printf.sprintf "TODO: %d incomplete case(s)" incomplete)
 ```
 
 Five observations about the code:
@@ -999,34 +1004,33 @@ Five observations about the code:
    cell res` inspects `res.state` and raises `Test_fail` or `Test_error`
    exactly as `check_cell_exn` would have. If the run contained a real
    QCheck failure, this raise fires first and Alcotest tags the test
-   `[FAIL]` — the following `Alcotest.incomplete` call is unreachable.
-4. **`Alcotest.incomplete` emits the `[INCOMPLETE]` tag.** Reached only
+   `[FAIL]` — the following `failwith` call is unreachable.
+4. **`failwith "TODO: ..."` emits the `[INCOMPLETE]` tag.** Reached only
    when `check_result` returned successfully (no real failure) *and*
-   `incomplete > 0`. The Alcotest runner catches the exception inside
-   `protect_test` and records an `` `Incomplete _`` outcome, which is
-   rendered in yellow as `[INCOMPLETE]`, does not count toward failures,
-   and does not affect the exit code. Priority overall is FAIL > INCOMPLETE
-   > OK.
-5. **Requires the patched alcotest.** `Alcotest.incomplete` and the
-   matching runtime machinery do not exist in stock alcotest; they are
-   additions in the patch living at `../alcotest/` on branch
-   `qcheck-inc-incomplete` (based on tag 1.9.1). With a stock-alcotest
-   pin or no pin, this bridge fails to compile. See `ALCOTEST.md` for the
-   setup and `patches/alcotest-incomplete.patch` for the reproducible
-   patch against the 1.9.1 tag.
-6. **Alcotest-native backstop, independent of this bridge.** Patched alcotest
-   *also* recognises `Failure s when String.is_prefix ~affix:"TODO:" s` in
-   `protect_test` and routes it to `` `Incomplete s `` directly — see §3 and
-   `ALCOTEST.md`. That path is what makes plain alcotest tests of
-   not-yet-implemented code (no QCheck in the loop) also render
-   `[INCOMPLETE]`. For QCheck properties, the path is not normally reached:
-   QCheck2 catches `Failure s when todo_reason s <> None` *inside* the
-   runner at `src/core/QCheck2.ml:1944`, turns it into a counted incomplete
-   iteration, and returns without re-raising. So the `TODO:` `Failure` never
-   escapes to alcotest's `protect_test` — the bridge's explicit
-   `Alcotest.incomplete` call above is the only way `[INCOMPLETE]` is
-   reached for QCheck tests. If a refactor ever caused a stray `TODO:`
-   failure to leak past QCheck, alcotest's native arm would catch it.
+   `incomplete > 0`. The `Failure` propagates up to alcotest's `protect_test`,
+   whose `Failure s when String.is_prefix ~affix:"TODO:" s` arm produces
+   `` `Incomplete s ``, rendered in yellow as `[INCOMPLETE]`. Does not count
+   toward failures, does not affect the exit code. Priority overall is
+   FAIL > INCOMPLETE > OK. The bridge uses the **same convention as any
+   other TODO-raising site** (§3) — no special alcotest API, no custom
+   exception. `failwith` is `Stdlib`, always in scope.
+5. **Patched alcotest required for the `[INCOMPLETE]` tag.** Stock alcotest
+   has no `"TODO:"` prefix recognition; its `protect_test` routes every
+   `Failure` to `[FAIL]`. So against stock alcotest, runs with incomplete
+   cases would be tagged `[FAIL]` (exit 1) instead of `[INCOMPLETE]`
+   (exit 0). This is a **silent behavioural degradation**, not a build
+   error — the bridge uses only `failwith`, which compiles anywhere.
+   See `ALCOTEST.md` for setup and `patches/alcotest-incomplete.patch`
+   for the reproducible patch against the 1.9.1 tag.
+
+Why no bespoke alcotest API (no `Alcotest.incomplete`) is needed: QCheck2
+itself catches `Failure s when todo_reason s <> None` *inside* its runner
+(§4.6, `src/core/QCheck2.ml:1944`), turns it into a counted incomplete
+iteration, and returns normally. The per-iteration `"TODO:"` `Failure`
+never escapes to alcotest. The bridge then synthesises its own summary
+`Failure "TODO: N incomplete case(s)"` after `check_result`, and *that*
+is what reaches alcotest's `protect_test`. One path, one convention,
+no new identifiers.
 
 ### 14.3 Documentation in `QCheck_alcotest.mli`
 
@@ -1038,8 +1042,10 @@ and the tag:
     When the tested property raises a [Failure] with a ["TODO:..."] message
     (via [failwith]), incomplete case counts and per-reason breakdowns are
     printed to stdout before the result is checked, and the test case is
-    tagged [\[INCOMPLETE\]] in the alcotest output (provided the patched
-    alcotest exposing {!Alcotest.incomplete} is available).
+    tagged [\[INCOMPLETE\]] in the alcotest output. The [\[INCOMPLETE\]]
+    tag requires the patched alcotest whose [protect_test] recognises the
+    ["TODO:"] prefix on [Failure] messages (see this repo's [ALCOTEST.md]);
+    against stock alcotest, the same tests are tagged [\[FAIL\]] instead.
     ... *)
 ```
 
@@ -1109,7 +1115,7 @@ The test binary is registered in `test/core/dune` as:
 
 | Aspect                           | Before                   | After                                                                 |
 |----------------------------------|--------------------------|-----------------------------------------------------------------------|
-| API called                       | `T.check_cell_exn`       | `T.check_cell` + `T.check_result` + conditional `Alcotest.incomplete` |
+| API called                       | `T.check_cell_exn`       | `T.check_cell` + `T.check_result` + conditional `failwith "TODO: ..."` |
 | `TestResult.t` accessible        | No (consumed internally) | Yes (inspected before raising)                                        |
 | Incomplete count printed         | No                       | Yes, when `count_incomplete > 0`                                      |
 | Per-reason breakdown printed     | No                       | Yes, one line per distinct TODO reason                                |
@@ -1137,7 +1143,7 @@ The test binary is registered in `test/core/dune` as:
 | `src/core/QCheck2.ml`                | Initialize `count_incomplete = 0` and `todo_reasons` in `check_cell`                                                                                           |
 | `src/core/QCheck2.mli`               | Doc-only `{1 Incremental PBT}` section describing the `failwith "TODO:..."` convention                                                                         |
 | `src/core/QCheck2.mli`               | Expose `get_count_incomplete` and `get_todo_reasons` in `TestResult`                                                                                           |
-| `src/alcotest/QCheck_alcotest.ml`    | `to_alcotest` uses `check_cell` + `check_result`; prints incomplete breakdown before raising; raises `Alcotest.incomplete` on successful-but-incomplete runs to emit the `[INCOMPLETE]` tag |
+| `src/alcotest/QCheck_alcotest.ml`    | `to_alcotest` uses `check_cell` + `check_result`; prints incomplete breakdown before raising; raises `failwith "TODO: %d incomplete case(s)"` on successful-but-incomplete runs so patched alcotest emits the `[INCOMPLETE]` tag |
 | `src/alcotest/QCheck_alcotest.mli`   | Document TODO-aware behaviour *and* the `[INCOMPLETE]` tag + patched-alcotest requirement in the `to_alcotest` docstring                                       |
 | `test/core/dune`                     | `lambda_subst` and `lambda_subst_alco` executable stanzas                                                                                                      |
 | `test/core/lambda_subst.ml`          | Thesis experiment: 4 substitutions, generators, property, direct runners                                                                                       |
@@ -1153,6 +1159,6 @@ The test binary is registered in `test/core/dune` as:
 | `../alcotest/src/alcotest-engine/…`    | 7 files, ≈ 25 lines added: new `Incomplete` exception, `` `Incomplete _`` variant, printer branches, helper      |
 
 All other modules in this repo are untouched; consumers that never raise
-`failwith "TODO:..."` observe identical behavior to upstream QCheck2, and
-(as long as they don't call `Alcotest.incomplete` directly) observe
-identical behavior to upstream alcotest.
+`failwith "TODO:..."` observe identical behavior to both upstream QCheck2
+and upstream alcotest — the added code paths in patched alcotest are
+unreachable without the `"TODO:"` prefix.

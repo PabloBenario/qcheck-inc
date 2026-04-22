@@ -10,19 +10,16 @@ Upstream alcotest has only `[OK]` / `[FAIL]` / `[SKIP]`. Our patch adds
 **not** counted toward the nonzero exit code, but **is** counted toward the
 summary's "N tests run" total.
 
-There are two equal ways to produce `[INCOMPLETE]`:
+`[INCOMPLETE]` is produced by **one convention only**: any alcotest test
+(QCheck or not) that raises `Failure` whose message starts with `"TODO:"`.
+Typically via `failwith "TODO: not implemented yet"` inside the code under
+test. Patched alcotest's `protect_test` matches the prefix and routes to
+`` `Incomplete ``. No custom alcotest API, no new exception; `failwith` is
+`Stdlib`, always in scope.
 
-1. **Convention** — any alcotest test (QCheck or not) that raises `Failure`
-   whose message starts with `"TODO:"`. Typically via `failwith "TODO: not
-   implemented yet"` inside the code under test. Recognised by `protect_test`
-   in patched alcotest.
-2. **Programmatic** — `Alcotest.incomplete "reason"` raises a new
-   `Alcotest.Incomplete` exception, also caught by `protect_test`. Mirrors
-   `Alcotest.skip ()`. Used by the `QCheck_alcotest` bridge to roll up
-   multiple QCheck-iteration TODOs into a single alcotest outcome.
-
-If nothing in the test suite triggers either path, the patched alcotest
-behaves identically to upstream — the added code paths are simply unreachable.
+If nothing in the test suite raises `Failure "TODO:..."`, the patched
+alcotest behaves identically to upstream — the added code paths are
+simply unreachable.
 
 ## Layout
 
@@ -82,8 +79,11 @@ opam pin list | grep alcotest
 
 The pin follows the **working tree** of `../alcotest/`, not a specific branch.
 If you switch `../alcotest/` back to `main` (to pull upstream, test something,
-etc.), the next `dune build` inside `qcheck-inc` will start linking against
-unpatched alcotest and any use of `Alcotest.incomplete` will fail to compile.
+etc.), the next `dune build` inside `qcheck-inc` will link against unpatched
+alcotest and `failwith "TODO:..."` cases will silently be tagged `[FAIL]`
+(with a nonzero exit code) instead of `[INCOMPLETE]` (exit 0). No build
+error — the degradation is purely behavioural, because the bridge never
+touched any alcotest-specific identifier.
 
 Quick guard before building:
 
@@ -111,12 +111,14 @@ Files touched by the patch (all under `../alcotest/src/alcotest-engine/`):
 | File           | Purpose                                                                               |
 |----------------|---------------------------------------------------------------------------------------|
 | `model.ml`     | Add `` `Incomplete of string`` variant to `Run_result.t`; mark non-failing            |
-| `core_intf.ml` | Declare `exception Incomplete of string` inside `Core.V1`                             |
-| `core.ml`      | Define and re-export the exception; `has_run` returns true; `protect_test` catches both `Incomplete` *and* `Failure "TODO:..."` |
+| `core.ml`      | `has_run` returns true on `Incomplete`; `protect_test` routes `Failure s` with a `"TODO:"` prefix to `` `Incomplete s `` |
 | `pp_intf.ml`   | Extend the tag polymorphic variant                                                    |
 | `pp.ml`        | Five branches: colour, label, error-pretty, tag-of-result, compact char               |
-| `test.ml`      | `let incomplete reason = raise (Core.V1.Incomplete reason)`                           |
-| `test.mli`     | `val incomplete : string -> 'a` + docstring                                           |
+
+The patch does not add, remove, or modify any public identifier in alcotest
+(no new exception, no new value, no renamed type). End-users see the same
+API surface as stock alcotest; only the runtime behaviour of `protect_test`
+is augmented.
 
 ### Make a change
 
@@ -219,7 +221,7 @@ Exit 0. `[INCOMPLETE]` does not contribute to the exit code.
 
 The test file there (`test_arith_stubs.ml`) uses only `open Arith_stubs`
 and standard `Alcotest.(check ...) / test_case / run` calls — no
-reference to `Alcotest.incomplete`, no QCheck. All the `[INCOMPLETE]`
+QCheck, no patched-alcotest-specific identifier. All the `[INCOMPLETE]`
 tagging comes from patched alcotest's `protect_test` matching the
 `"TODO:"` prefix on `Failure` messages raised inside the library.
 
@@ -237,8 +239,9 @@ opam reinstall alcotest --yes                          # pick up the new sources
 dune clean && dune build
 ```
 
-The patch is small (≈ 26 added lines across 7 files, no refactors), so
-conflicts on a routine upstream bump should be rare and mechanical.
+The patch is small (≈ 11 added lines across 4 files, no refactors, no
+public-API changes), so conflicts on a routine upstream bump should be
+rare and mechanical.
 
 ## Reverting to stock alcotest
 
@@ -250,30 +253,25 @@ This restores the registry version. The clone at `../alcotest/` is untouched;
 re-pin with `opam pin add alcotest ../alcotest --kind=path --yes` (and make
 sure the branch is `qcheck-inc-incomplete`) to get the `[INCOMPLETE]` tag
 back. After reverting to stock, `dune exec test/core/lambda_subst_alco.exe`
-will fail to compile or link because `Alcotest.incomplete` no longer exists.
-
-In practice, `src/alcotest/QCheck_alcotest.ml` calls `Alcotest.incomplete`
-only when `count_incomplete > 0`. To keep the bridge buildable against both
-patched and stock alcotest, you would need to guard that line (e.g. with a
-cppo flag) — we don't do this today because we always pin.
-
-Separately, the `failwith "TODO:..."` convention silently degrades to `[FAIL]`
-on stock alcotest: stock's `protect_test` has no `Failure s when … "TODO:"` arm.
-No link error, just different output.
+still compiles and runs — the bridge uses only `failwith`, which is
+stdlib — but `failwith "TODO:..."` cases now get the standard `[FAIL]`
+treatment instead of `[INCOMPLETE]`, and incomplete-only runs exit 1
+instead of 0. Silent behavioural degradation, not a build error.
 
 ## The bridge: `src/alcotest/QCheck_alcotest.ml`
 
-The QCheck → alcotest adapter raises `Alcotest.incomplete` after
-`T.check_result` returns successfully, only when `count_incomplete > 0`.
-Priority order:
+The QCheck → alcotest adapter uses `failwith "TODO: %d incomplete case(s)"`
+after `T.check_result` returns successfully, only when
+`count_incomplete > 0`. Priority order:
 
 - Real QCheck failure → `check_result` raises → alcotest tags `[FAIL]`.
-- No failure, `count_incomplete > 0` → `Alcotest.incomplete` raises →
-  alcotest tags `[INCOMPLETE]`.
+- No failure, `count_incomplete > 0` → `failwith "TODO: ..."` raises →
+  patched alcotest's `protect_test` recognises the prefix → tags
+  `[INCOMPLETE]`.
 - No failure, no incompletes → closure returns `()` → alcotest tags `[OK]`.
 
-The `Alcotest.incomplete` call is only reached when the QCheck2 framework
-actually incremented `count_incomplete`, which happens exclusively in the
+The `failwith` call is only reached when the QCheck2 framework actually
+incremented `count_incomplete`, which happens exclusively in the
 `| Failure msg when todo_reason msg <> None` arm of the runner. Thus the
 entire `[INCOMPLETE]` feature is gated on a test actually using
 `failwith "TODO:..."`; it's opt-in from both sides.

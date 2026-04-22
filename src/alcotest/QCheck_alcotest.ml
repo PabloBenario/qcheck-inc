@@ -65,6 +65,6 @@ let to_alcotest
     end;
     T.check_result cell res;
     if incomplete > 0 then
-      Alcotest.incomplete (Printf.sprintf "%d incomplete case(s)" incomplete)
+      failwith (Printf.sprintf "TODO: %d incomplete case(s)" incomplete)
   in
   ((name, speed_level, run) : unit Alcotest.test_case)

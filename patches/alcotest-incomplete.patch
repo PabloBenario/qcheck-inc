@@ -1,7 +1,7 @@
 From 463d581f062fa6dec26857bd0341a3973c251c15 Mon Sep 17 00:00:00 2001
 From: PabloBenario <pablo.benario@ug.uchile.cl>
 Date: Tue, 21 Apr 2026 16:09:44 -0400
-Subject: [PATCH 1/2] Add Incomplete outcome: exception, variant, printer
+Subject: [PATCH 1/3] Add Incomplete outcome: exception, variant, printer
  branches, helper
 
 Adds a third test outcome alongside Ok/Fail/Skip:
@@ -183,7 +183,7 @@ index 4f0a6e7..d77021c 100644
 From d5763302b6ef12b3c5d314ed401f77a306ec2aa0 Mon Sep 17 00:00:00 2001
 From: PabloBenario <pablo.benario@ug.uchile.cl>
 Date: Wed, 22 Apr 2026 18:35:36 -0400
-Subject: [PATCH 2/2] Recognize failwith "TODO:..." natively as Incomplete
+Subject: [PATCH 2/3] Recognize failwith "TODO:..." natively as Incomplete
 
 Add a when-guarded arm to protect_test so Failure messages beginning with
 "TODO:" route to `Incomplete instead of `Exn. Mirrors the prefix matcher
@@ -209,6 +209,107 @@ index e4ac508..a1e1c6a 100644
           | Failure s -> exn path "failure" Fmt.(const string s)
           | Invalid_argument s -> exn path "invalid" Fmt.(const string s)
           | e -> exn path "exception" Fmt.(const exn e))
+-- 
+2.50.1 (Apple Git-155)
+
+
+From 1253bef3767d3b4a14714bece49c8b05d8be8d50 Mon Sep 17 00:00:00 2001
+From: PabloBenario <pablo.benario@ug.uchile.cl>
+Date: Wed, 22 Apr 2026 19:20:17 -0400
+Subject: [PATCH 3/3] Drop redundant Incomplete exception and helper
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The failwith "TODO:..." when-guard in protect_test subsumes everything
+the typed Incomplete exception + Alcotest.incomplete helper did. Both
+paths produced the same `Incomplete variant; keeping both meant an
+unnecessary second entry to the same outcome.
+
+This commit removes:
+  - exception Incomplete of string (core.ml, core_intf.ml, V1 re-export)
+  - val Alcotest.incomplete : string -> 'a (test.ml, test.mli)
+  - the `Incomplete msg -> ` arm in protect_test
+
+What stays (the actual feature):
+  - `Incomplete of string variant in Run_result.t
+  - is_failure=false, has_run=true
+  - [INCOMPLETE] tag rendering (yellow, compact char 'I')
+  - `Failure s when String.is_prefix ~affix:"TODO:" s` arm in protect_test
+
+Callers wanting to mark a test incomplete now use failwith "TODO:reason"
+directly — same convention as every other consumer of the TODO prefix.
+Net patch footprint drops from ~26 to ~12 lines across 6 files.
+---
+ src/alcotest-engine/core.ml      | 3 ---
+ src/alcotest-engine/core_intf.ml | 1 -
+ src/alcotest-engine/test.ml      | 1 -
+ src/alcotest-engine/test.mli     | 9 ---------
+ 4 files changed, 14 deletions(-)
+
+diff --git a/src/alcotest-engine/core.ml b/src/alcotest-engine/core.ml
+index a1e1c6a..1b386d5 100644
+--- a/src/alcotest-engine/core.ml
++++ b/src/alcotest-engine/core.ml
+@@ -20,7 +20,6 @@ open Model
+ 
+ exception Check_error of unit Fmt.t
+ exception Skip
+-exception Incomplete of string
+ 
+ let () =
+   let print_error =
+@@ -190,7 +189,6 @@ module Make (P : Platform.MAKER) (M : Monad.S) = struct
+              let err = Fmt.(err ++ const string (bt ())) in
+              `Error (path, err)
+          | Skip -> `Skip
+-         | Incomplete msg -> `Incomplete msg
+          | Failure s when String.is_prefix ~affix:"TODO:" s -> `Incomplete s
+          | Failure s -> exn path "failure" Fmt.(const string s)
+          | Invalid_argument s -> exn path "invalid" Fmt.(const string s)
+@@ -454,5 +452,4 @@ module V1 = struct
+   module Make = Make
+ 
+   exception Skip = Skip
+-  exception Incomplete = Incomplete
+ end
+diff --git a/src/alcotest-engine/core_intf.ml b/src/alcotest-engine/core_intf.ml
+index e5bda5c..4d60227 100644
+--- a/src/alcotest-engine/core_intf.ml
++++ b/src/alcotest-engine/core_intf.ml
+@@ -123,6 +123,5 @@ module type Core = sig
+         Intended for use by the {!Alcotest_lwt} and {!Alcotest_async} backends. *)
+ 
+     exception Skip
+-    exception Incomplete of string
+   end
+ end
+diff --git a/src/alcotest-engine/test.ml b/src/alcotest-engine/test.ml
+index d811d23..e441c61 100644
+--- a/src/alcotest-engine/test.ml
++++ b/src/alcotest-engine/test.ml
+@@ -269,4 +269,3 @@ let match_raises ?here ?pos msg exnp f =
+               msg Fmt.exn e)
+ 
+ let skip () = raise Core.V1.Skip
+-let incomplete reason = raise (Core.V1.Incomplete reason)
+diff --git a/src/alcotest-engine/test.mli b/src/alcotest-engine/test.mli
+index d77021c..4f0a6e7 100644
+--- a/src/alcotest-engine/test.mli
++++ b/src/alcotest-engine/test.mli
+@@ -166,12 +166,3 @@ val skip : unit -> 'a
+ (** Skip the current test case.
+ 
+     @since 1.7.0 *)
+-
+-val incomplete : string -> 'a
+-(** Mark the current test case as incomplete.
+-
+-    Produces the [\[INCOMPLETE\]] tag in alcotest output. Unlike a failure,
+-    this does not count toward exit code and does not stop the run. Intended
+-    for tests that exercised not-yet-implemented code paths.
+-
+-    @since 1.9.1+inc *)
 -- 
 2.50.1 (Apple Git-155)
 
