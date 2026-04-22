@@ -1,19 +1,28 @@
 # Patched alcotest — external sibling clone
 
 This repo depends on a **patched copy of alcotest** that lives as a separate
-clone at `../alcotest/` (sibling of `qcheck-inc/`). The patch adds a third
-verdict tag, `[INCOMPLETE]` (yellow), so the alcotest runner can flag QCheck
-tests that hit `failwith "TODO:..."` cases without a real failure.
+clone at `../alcotest/` (sibling of `qcheck-inc/`). The patch adds a fourth
+verdict tag, `[INCOMPLETE]` (yellow), so the alcotest runner can flag tests
+that hit `failwith "TODO:..."` cases without a real failure.
 
 Upstream alcotest has only `[OK]` / `[FAIL]` / `[SKIP]`. Our patch adds
 `[INCOMPLETE]` as a fourth outcome that is **not** counted as a failure,
 **not** counted toward the nonzero exit code, but **is** counted toward the
 summary's "N tests run" total.
 
-If nothing in the test suite ever raises `Alcotest.Incomplete` (i.e. nothing
-calls `failwith "TODO:..."` under the `QCheck_alcotest` bridge), the patched
-alcotest behaves identically to upstream — the added code paths are simply
-unreachable.
+There are two equal ways to produce `[INCOMPLETE]`:
+
+1. **Convention** — any alcotest test (QCheck or not) that raises `Failure`
+   whose message starts with `"TODO:"`. Typically via `failwith "TODO: not
+   implemented yet"` inside the code under test. Recognised by `protect_test`
+   in patched alcotest.
+2. **Programmatic** — `Alcotest.incomplete "reason"` raises a new
+   `Alcotest.Incomplete` exception, also caught by `protect_test`. Mirrors
+   `Alcotest.skip ()`. Used by the `QCheck_alcotest` bridge to roll up
+   multiple QCheck-iteration TODOs into a single alcotest outcome.
+
+If nothing in the test suite triggers either path, the patched alcotest
+behaves identically to upstream — the added code paths are simply unreachable.
 
 ## Layout
 
@@ -99,15 +108,15 @@ git -C ../alcotest diff 1.9.1..HEAD -- src/
 
 Files touched by the patch (all under `../alcotest/src/alcotest-engine/`):
 
-| File | Purpose |
-|---|---|
-| `model.ml` | Add `` `Incomplete of string`` variant to `Run_result.t`; mark non-failing |
-| `core_intf.ml` | Declare `exception Incomplete of string` inside `Core.V1` |
-| `core.ml` | Define and re-export the exception; `has_run` returns true; `protect_test` catches it |
-| `pp_intf.ml` | Extend the tag polymorphic variant |
-| `pp.ml` | Five branches: colour, label, error-pretty, tag-of-result, compact char |
-| `test.ml` | `let incomplete reason = raise (Core.V1.Incomplete reason)` |
-| `test.mli` | `val incomplete : string -> 'a` + docstring |
+| File           | Purpose                                                                               |
+|----------------|---------------------------------------------------------------------------------------|
+| `model.ml`     | Add `` `Incomplete of string`` variant to `Run_result.t`; mark non-failing            |
+| `core_intf.ml` | Declare `exception Incomplete of string` inside `Core.V1`                             |
+| `core.ml`      | Define and re-export the exception; `has_run` returns true; `protect_test` catches both `Incomplete` *and* `Failure "TODO:..."` |
+| `pp_intf.ml`   | Extend the tag polymorphic variant                                                    |
+| `pp.ml`        | Five branches: colour, label, error-pretty, tag-of-result, compact char               |
+| `test.ml`      | `let incomplete reason = raise (Core.V1.Incomplete reason)`                           |
+| `test.mli`     | `val incomplete : string -> 'a` + docstring                                           |
 
 ### Make a change
 
@@ -116,15 +125,14 @@ cd ../alcotest
 $EDITOR src/alcotest-engine/pp.ml       # or whichever file
 git commit -am "..."                    # keep history focused per logical change
 cd ../qcheck-inc
-dune build                              # opam re-syncs automatically on next build
+opam reinstall alcotest --yes           # re-rsync the pin and rebuild alcotest
+dune build                              # link qcheck-inc against the updated alcotest
 ```
 
-If opam needs a nudge (rare with `--kind=path`):
-
-```sh
-opam reinstall alcotest --yes
-dune clean && dune build
-```
+`dune build` alone does **not** pick up source edits in `../alcotest/` — the
+opam pin is a live *source* (`--kind=path`), but re-rsync only happens on an
+opam install/reinstall trigger. Run `opam reinstall alcotest --yes` after any
+edit to files under `../alcotest/src/`, then `dune build`.
 
 ### Refresh the committed patch file
 
@@ -162,6 +170,59 @@ Expected alcotest output fragment:
   [FAIL]        substitution          3   Capture Avoidance (throws incomplet...
 ```
 
+### Verify the native `failwith "TODO:..."` path — sibling demo project
+
+Independent of QCheck, a plain alcotest test that calls `failwith "TODO:..."`
+should render `[INCOMPLETE]` rather than `[FAIL]`. The canonical
+demonstration is the sibling project at `../alcotest-incomplete-demo/` —
+its own opam switch, pinning this repo's patched alcotest and qcheck-inc,
+so it exercises the full real-consumer path (switch bootstrap, pin,
+install, link).
+
+Layout:
+
+```
+experimental/
+├── alcotest/                       # patched alcotest
+├── qcheck-inc/                     # this repo
+└── alcotest-incomplete-demo/       # sibling demo — own _opam/
+    ├── arith_stubs.{ml,mli}        # library with failwith "TODO:..."
+    ├── test_arith_stubs.ml         # plain alcotest tests
+    └── dune / dune-project / README.md
+```
+
+First-time bootstrap (see that directory's `README.md` for the full
+walkthrough):
+
+```sh
+cd ../alcotest-incomplete-demo
+opam switch create . 5.4.0 --no-install --yes && eval $(opam env)
+opam pin add alcotest ../alcotest --kind=path --yes
+opam pin add qcheck-core ../qcheck-inc --kind=path --yes
+opam pin add qcheck ../qcheck-inc --kind=path --yes
+opam pin add qcheck-alcotest ../qcheck-inc --kind=path --yes
+dune runtest
+```
+
+Expected output fragment:
+
+```
+  [OK]          implemented   0   add.
+  [OK]          implemented   1   multiply non-negative.
+  [INCOMPLETE]  stubs         0   multiply negative arg (TODO).
+  [INCOMPLETE]  stubs         1   divide (TODO).
+
+Test Successful in … 4 tests run.
+```
+
+Exit 0. `[INCOMPLETE]` does not contribute to the exit code.
+
+The test file there (`test_arith_stubs.ml`) uses only `open Arith_stubs`
+and standard `Alcotest.(check ...) / test_case / run` calls — no
+reference to `Alcotest.incomplete`, no QCheck. All the `[INCOMPLETE]`
+tagging comes from patched alcotest's `protect_test` matching the
+`"TODO:"` prefix on `Failure` messages raised inside the library.
+
 ## Rebasing onto a newer upstream alcotest release
 
 ```sh
@@ -176,7 +237,7 @@ opam reinstall alcotest --yes                          # pick up the new sources
 dune clean && dune build
 ```
 
-The patch is small (≈ 25 added lines across 7 files, no refactors), so
+The patch is small (≈ 26 added lines across 7 files, no refactors), so
 conflicts on a routine upstream bump should be rare and mechanical.
 
 ## Reverting to stock alcotest
@@ -195,6 +256,10 @@ In practice, `src/alcotest/QCheck_alcotest.ml` calls `Alcotest.incomplete`
 only when `count_incomplete > 0`. To keep the bridge buildable against both
 patched and stock alcotest, you would need to guard that line (e.g. with a
 cppo flag) — we don't do this today because we always pin.
+
+Separately, the `failwith "TODO:..."` convention silently degrades to `[FAIL]`
+on stock alcotest: stock's `protect_test` has no `Failure s when … "TODO:"` arm.
+No link error, just different output.
 
 ## The bridge: `src/alcotest/QCheck_alcotest.ml`
 

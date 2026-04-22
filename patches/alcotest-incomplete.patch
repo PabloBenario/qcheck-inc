@@ -1,8 +1,8 @@
 From 463d581f062fa6dec26857bd0341a3973c251c15 Mon Sep 17 00:00:00 2001
 From: PabloBenario <pablo.benario@ug.uchile.cl>
 Date: Tue, 21 Apr 2026 16:09:44 -0400
-Subject: [PATCH] Add Incomplete outcome: exception, variant, printer branches,
- helper
+Subject: [PATCH 1/2] Add Incomplete outcome: exception, variant, printer
+ branches, helper
 
 Adds a third test outcome alongside Ok/Fail/Skip:
 
@@ -176,6 +176,39 @@ index 4f0a6e7..d77021c 100644
 +    for tests that exercised not-yet-implemented code paths.
 +
 +    @since 1.9.1+inc *)
+-- 
+2.50.1 (Apple Git-155)
+
+
+From d5763302b6ef12b3c5d314ed401f77a306ec2aa0 Mon Sep 17 00:00:00 2001
+From: PabloBenario <pablo.benario@ug.uchile.cl>
+Date: Wed, 22 Apr 2026 18:35:36 -0400
+Subject: [PATCH 2/2] Recognize failwith "TODO:..." natively as Incomplete
+
+Add a when-guarded arm to protect_test so Failure messages beginning with
+"TODO:" route to `Incomplete instead of `Exn. Mirrors the prefix matcher
+used by QCheck2's todo_reason helper in qcheck-inc. Enables plain alcotest
+tests (no QCheck in the loop) to mark themselves [INCOMPLETE] via
+failwith "TODO:..." alone.
+
+Alcotest.incomplete "reason" continues to work unchanged via the existing
+Incomplete-exception arm one line above.
+---
+ src/alcotest-engine/core.ml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/alcotest-engine/core.ml b/src/alcotest-engine/core.ml
+index e4ac508..a1e1c6a 100644
+--- a/src/alcotest-engine/core.ml
++++ b/src/alcotest-engine/core.ml
+@@ -191,6 +191,7 @@ module Make (P : Platform.MAKER) (M : Monad.S) = struct
+              `Error (path, err)
+          | Skip -> `Skip
+          | Incomplete msg -> `Incomplete msg
++         | Failure s when String.is_prefix ~affix:"TODO:" s -> `Incomplete s
+          | Failure s -> exn path "failure" Fmt.(const string s)
+          | Invalid_argument s -> exn path "invalid" Fmt.(const string s)
+          | e -> exn path "exception" Fmt.(const exn e))
 -- 
 2.50.1 (Apple Git-155)
 
