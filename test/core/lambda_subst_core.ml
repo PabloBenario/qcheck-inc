@@ -1,5 +1,3 @@
-let incomplete_counter = ref 0
-
 module G = QCheck2.Gen
 
 (* ========================================================================= *)
@@ -124,10 +122,8 @@ let rec subst_2_incomplete x s t =
       if x = y then t
       else
         (match body with
-         | Abs _ -> incr incomplete_counter;
-                    failwith "TODO:subst_2_incomplete: nested Abs"
-         | App _ -> incr incomplete_counter;
-                    failwith "TODO:subst_2_incomplete: App in Abs body"
+         | Abs _ -> failwith "TODO:subst_2_incomplete: nested Abs"
+         | App _ -> failwith "TODO:subst_2_incomplete: App in Abs body"
          | _     -> Abs (y, subst_2_incomplete x s body))
 
 
@@ -311,27 +307,7 @@ let make_prop_subst_free_no_var_capture_open subst_fn name =
         let lhs = free_vars res in
         let rhs = set_union (set_remove x free_t) (free_vars s) in
         if set_equal lhs rhs then true
-        else
-          (*******************************************************************************************)
-          (* let captured = List.filter (fun v -> not (List.mem v lhs)) rhs in                       *)
-          (* let unexpected = List.filter (fun v -> not (List.mem v rhs)) lhs in                     *)
-          (* Printf.printf "FAILURE!\n";                                                             *)
-          (* Printf.printf "  [v%d := %s] %s\n" x (print_term s) (print_term t);                     *)
-          (* Printf.printf "  result:   %s\n" (print_term res);                                      *)
-          (* Printf.printf "  FV(result)   = {%s}\n"                                                 *)
-          (*   (String.concat ", " (List.map (fun v -> "v" ^ string_of_int v) (normalize lhs)));     *)
-          (* Printf.printf "  expected FVs = {%s}\n"                                                 *)
-          (*   (String.concat ", " (List.map (fun v -> "v" ^ string_of_int v) (normalize rhs)));     *)
-          (* (match captured with                                                                    *)
-          (*  | [] -> ()                                                                             *)
-          (*  | _ -> Printf.printf "  captured (should be free but aren't): {%s}\n"                  *)
-          (*           (String.concat ", " (List.map (fun v -> "v" ^ string_of_int v) captured)));   *)
-          (* (match unexpected with                                                                  *)
-          (*  | [] -> ()                                                                             *)
-          (*  | _ -> Printf.printf "  unexpected (free but shouldn't be): {%s}\n"                    *)
-          (*           (String.concat ", " (List.map (fun v -> "v" ^ string_of_int v) unexpected))); *)
-          (*******************************************************************************************)
-          false
+        else false
       else true)
 
 let prop_subst_free_no_var_capture_open_subst_naive =
@@ -348,79 +324,15 @@ let prop_subst_free_no_var_capture_open_subst_2_incomplete =
 
 
 (* ========================================================================== *)
-(* SECTION 6: RUNNING WITHOUT THE RUNNER (using QCheck2.Test.check_exn)       *)
+(* SECTION 6: RUNNING WITH THE RUNNER                                         *)
 (* ========================================================================== *)
 
-let run_direct (test : QCheck2.Test.t) : unit =
-  match test with
-  | QCheck2.Test.Test cell ->
-     let name = QCheck2.Test.get_name cell in
-     Printf.printf "\n=== %s ===\n" name;
-     let rand = Random.State.make_self_init () in
-     let res = QCheck2.Test.check_cell ~rand cell in
-     let count = QCheck2.TestResult.get_count res in
-     let n_fails =
-       match QCheck2.TestResult.get_state res with
-       | QCheck2.TestResult.Failed { instances } -> List.length instances
-       | _ -> 0
-     in
-     let passed = count - n_fails in
-     match QCheck2.Test.check_result cell res with
-     | () -> Printf.printf "PASS (passed: %d)\n" passed
-     | exception QCheck2.Test.Test_fail (tname, msgs) ->
-        Printf.printf "FAIL [%s] (passed: %d, failed: %d):\n%s\n"
-          tname passed n_fails (String.concat "\n" msgs)
-     | exception QCheck2.Test.Test_error (tname, msg, exn, _bt) ->
-        Printf.printf "ERROR [%s] (passed: %d, failed: %d): %s\n%s\n"
-          tname passed n_fails msg (Printexc.to_string exn)
-
-(* Analogous to run_direct, but uses the incremental PBT feature:
-   failwith "TODO:..." raises are counted and reported instead of crashing.
-   Prints both the pass count and the incomplete count on every outcome
-   (pass, fail, error), so a mixed run shows all three statistics. *)
-let run_direct_incomplete (test : QCheck2.Test.t) : unit =
-  match test with
-  | QCheck2.Test.Test cell ->
-     let name = QCheck2.Test.get_name cell in
-     Printf.printf "\n=== %s ===\n" name;
-     let rand = Random.State.make_self_init () in
-     let res = QCheck2.Test.check_cell ~rand cell in
-     let count = QCheck2.TestResult.get_count res in
-     let incomplete = QCheck2.TestResult.get_count_incomplete res in
-     let n_fails =
-       match QCheck2.TestResult.get_state res with
-       | QCheck2.TestResult.Failed { instances } -> List.length instances
-       | _ -> 0
-     in
-     let passed = count - n_fails in
-     let todo_reasons = QCheck2.TestResult.get_todo_reasons res in
-     let print_todo_reasons () =
-       List.iter (fun (reason, count) ->
-         Printf.printf "  TODO: %s (%d times)\n" reason count
-       ) todo_reasons
-     in
-     match QCheck2.Test.check_result cell res with
-     | () ->
-        Printf.printf "PASS (passed: %d, incomplete cases: %d)\n"
-          passed incomplete;
-        print_todo_reasons ()
-     | exception QCheck2.Test.Test_fail (tname, msgs) ->
-          Printf.printf "FAIL [%s] (passed: %d, failed: %d, incomplete cases: %d):\n%s\n"
-            tname passed n_fails incomplete (String.concat "\n" msgs);
-          print_todo_reasons ()
-     | exception QCheck2.Test.Test_error (tname, msg, exn, _bt) ->
-        Printf.printf "ERROR [%s] (passed: %d, failed: %d, incomplete cases: %d): %s\n%s"
-          tname passed n_fails incomplete msg (Printexc.to_string exn);
-        print_todo_reasons ()
-
-
-
 let () =
-  run_direct_incomplete test_validity;
-  run_direct_incomplete test_shrinker;
-  run_direct_incomplete prop_subst_free_no_var_capture_open_subst_naive;
-  run_direct_incomplete prop_subst_free_no_var_capture_open_subst_incom;
-  run_direct_incomplete prop_subst_free_no_var_capture_open_subst_mixed;
-  incomplete_counter := 0;
-  run_direct_incomplete prop_subst_free_no_var_capture_open_subst_2_incomplete;
-  Printf.printf "(global counter: TODO raised %d times)\n" !incomplete_counter
+  QCheck_base_runner.run_tests_main [
+    test_validity;
+    test_shrinker;
+    prop_subst_free_no_var_capture_open_subst_naive;
+    prop_subst_free_no_var_capture_open_subst_incom;
+    prop_subst_free_no_var_capture_open_subst_mixed;
+    prop_subst_free_no_var_capture_open_subst_2_incomplete;
+  ]

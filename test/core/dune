@@ -75,9 +75,17 @@
 (executable
   (name lambda_subst)
   (modules lambda_subst)
-  (libraries qcheck-core qcheck-core.runner))
+ (libraries qcheck-core))
+
 
 (executable
   (name lambda_subst_alco)
   (modules lambda_subst_alco)
-  (libraries qcheck-core qcheck-alcotest alcotest))
+ (libraries qcheck-core qcheck-alcotest alcotest))
+
+
+(executable
+  (name lambda_subst_core)
+  (modules lambda_subst_core)
+  (libraries qcheck-core qcheck-core.runner))
+

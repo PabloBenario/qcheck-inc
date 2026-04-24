@@ -678,9 +678,10 @@ the developer exactly which branch was hit.
 - **A patched copy of alcotest** at `../alcotest/` (sibling of this repo),
   on branch `qcheck-inc-incomplete` based on tag `1.9.1`. The patch adds
   the `[INCOMPLETE]` outcome tag that the `QCheck_alcotest` bridge relies
-  on. The patch is small (≈ 25 lines across 7 files under
-  `src/alcotest-engine/`) and is shipped in this repo as a backup at
-  `patches/alcotest-incomplete.patch`.
+  on. The patch is small (≈ 11 lines across 4 engine files under
+  `src/alcotest-engine/`, plus a self-contained e2e regression test at
+  `test/e2e/alcotest/passing/incomplete_in_test.{ml,expected}`) and is
+  shipped in this repo as a backup at `patches/alcotest-incomplete.patch`.
 
 See `ALCOTEST.md` at the repo root for the end-to-end setup reference and
 `_pablo/parallel-dev-of-qcheck-inc-and-alcotest.md` for the rationale and
@@ -1156,7 +1157,8 @@ The test binary is registered in `test/core/dune` as:
 | Location                               | Role                                                                                                             |
 |----------------------------------------|------------------------------------------------------------------------------------------------------------------|
 | `../alcotest/` (sibling clone)         | Working tree consumed via `opam pin add alcotest ../alcotest --kind=path`; must be on branch `qcheck-inc-incomplete` at build time |
-| `../alcotest/src/alcotest-engine/…`    | 7 files, ≈ 25 lines added: new `Incomplete` exception, `` `Incomplete _`` variant, printer branches, helper      |
+| `../alcotest/src/alcotest-engine/…`    | 4 files, ≈ 11 lines added: `` `Incomplete _`` variant, printer branches, `has_run=true` case, and a `Failure s when String.is_prefix ~affix:"TODO:" s` arm in `protect_test`. No public-API changes. |
+| `../alcotest/test/e2e/alcotest/passing/incomplete_in_test.{ml,expected}` | Self-contained e2e regression guard — one `[OK]` case + one `failwith "TODO:..."` case → `[INCOMPLETE]`, exit 0, diffed against the `.expected` file in alcotest's own `runtest` alias |
 
 All other modules in this repo are untouched; consumers that never raise
 `failwith "TODO:..."` observe identical behavior to both upstream QCheck2
