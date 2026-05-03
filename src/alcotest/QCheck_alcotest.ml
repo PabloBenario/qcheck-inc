@@ -65,21 +65,23 @@ let to_alcotest
       | Q.TestResult.Error _ -> 1
     in
     let passed = count - failed in
+    let stats_parts =
+      let p = [Printf.sprintf "%d passed" passed] in
+      let p = if incomplete > 0 then p @ [Printf.sprintf "%d incomplete" incomplete] else p in
+      let p = if failed > 0 then p @ [Printf.sprintf "%d failed" failed] else p in
+      p
+    in
+    Alcotest.set_test_suffix (String.concat ", " stats_parts);
     let format_reasons indent =
       Q.TestResult.get_todo_reasons res
       |> List.map (fun (r, c) -> Printf.sprintf "\n%s%s (%d times)" indent r c)
       |> String.concat ""
     in
-    let stats_line =
-      if incomplete > 0
-      then Printf.sprintf "\n(passed: %d, incomplete: %d, failed: %d)%s"
-             passed incomplete failed (format_reasons "  ")
-      else ""
-    in
     (try T.check_result cell res
      with exn ->
        let bt = Printexc.get_raw_backtrace () in
-       let msg = Printexc.to_string exn ^ stats_line in
+       let msg = Printexc.to_string exn ^
+         (if incomplete > 0 then format_reasons "  " else "") in
        Printexc.raise_with_backtrace (Failure msg) bt);
     if incomplete > 0 then
       failwith
