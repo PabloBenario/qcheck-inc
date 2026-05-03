@@ -55,16 +55,35 @@ let to_alcotest
   let run () =
     let call = Raw.callback ~colors ~verbose ~print_res:false ~print in
     let res = T.check_cell ~long ~call ~handler ~rand cell in
+    let count = Q.TestResult.get_count res in
     let incomplete = Q.TestResult.get_count_incomplete res in
-    if incomplete > 0 then begin
-      let todo_reasons = Q.TestResult.get_todo_reasons res in
-      Printf.printf "  incomplete cases: %d\n" incomplete;
-      List.iter (fun (reason, count) ->
-        Printf.printf "    TODO: %s (%d times)\n" reason count
-      ) todo_reasons
-    end;
-    T.check_result cell res;
+    let failed =
+      match Q.TestResult.get_state res with
+      | Q.TestResult.Success -> 0
+      | Q.TestResult.Failed { instances } -> List.length instances
+      | Q.TestResult.Failed_other _ -> 0
+      | Q.TestResult.Error _ -> 1
+    in
+    let passed = count - failed in
+    let format_reasons indent =
+      Q.TestResult.get_todo_reasons res
+      |> List.map (fun (r, c) -> Printf.sprintf "\n%s%s (%d times)" indent r c)
+      |> String.concat ""
+    in
+    let stats_line =
+      if incomplete > 0
+      then Printf.sprintf "\n(passed: %d, incomplete: %d, failed: %d)%s"
+             passed incomplete failed (format_reasons "  ")
+      else ""
+    in
+    (try T.check_result cell res
+     with exn ->
+       let bt = Printexc.get_raw_backtrace () in
+       let msg = Printexc.to_string exn ^ stats_line in
+       Printexc.raise_with_backtrace (Failure msg) bt);
     if incomplete > 0 then
-      failwith (Printf.sprintf "TODO: %d incomplete case(s)" incomplete)
+      failwith
+        (Printf.sprintf "TODO:\n(passed: %d, incomplete: %d, failed: %d)%s"
+           passed incomplete failed (format_reasons "  "))
   in
   ((name, speed_level, run) : unit Alcotest.test_case)

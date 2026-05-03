@@ -1,44 +1,165 @@
-From 463d581f062fa6dec26857bd0341a3973c251c15 Mon Sep 17 00:00:00 2001
+From a0897cfcba3e7cc9b7b0f3678da86277c9299af4 Mon Sep 17 00:00:00 2001
+From: Jan Midtgaard <mail@janmidtgaard.dk>
+Date: Thu, 9 Oct 2025 23:38:54 +0200
+Subject: [PATCH 1/9] Add missing conf-npm with-test dep to alcotest-js and
+ regenerate opam file (#427)
+
+---
+ alcotest-js.opam | 1 +
+ dune-project     | 3 ++-
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/alcotest-js.opam b/alcotest-js.opam
+index a4c90d5..41c327c 100644
+--- a/alcotest-js.opam
++++ b/alcotest-js.opam
+@@ -16,6 +16,7 @@ depends: [
+   "js_of_ocaml-compiler" {>= "3.11.0"}
+   "fmt" {with-test & >= "0.8.7"}
+   "cmdliner" {with-test & >= "1.2.0"}
++  "conf-npm" {with-test}
+   "odoc" {with-doc}
+ ]
+ dev-repo: "git+https://github.com/mirage/alcotest.git"
+diff --git a/dune-project b/dune-project
+index a8f6d75..4d75f0d 100644
+--- a/dune-project
++++ b/dune-project
+@@ -95,4 +95,5 @@ tests to run.
+   (alcotest (= :version))
+   (js_of_ocaml-compiler (>= 3.11.0))
+   (fmt (and :with-test (>= 0.8.7)))
+-  (cmdliner (and :with-test (>= 1.2.0)))))
++  (cmdliner (and :with-test (>= 1.2.0)))
++  (conf-npm :with-test)))
+-- 
+2.50.1 (Apple Git-155)
+
+
+From 9461340df3d2d892f6c1a576bf9a6e385c7ae8e6 Mon Sep 17 00:00:00 2001
+From: "dependabot[bot]" <49699333+dependabot[bot]@users.noreply.github.com>
+Date: Mon, 20 Oct 2025 12:23:12 +0200
+Subject: [PATCH 2/9] Bump actions/setup-node from 5 to 6 (#428)
+
+Bumps [actions/setup-node](https://github.com/actions/setup-node) from 5 to 6.
+- [Release notes](https://github.com/actions/setup-node/releases)
+- [Commits](https://github.com/actions/setup-node/compare/v5...v6)
+
+---
+updated-dependencies:
+- dependency-name: actions/setup-node
+  dependency-version: '6'
+  dependency-type: direct:production
+  update-type: version-update:semver-major
+...
+
+Signed-off-by: dependabot[bot] <support@github.com>
+Co-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>
+---
+ .github/workflows/build.yml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/.github/workflows/build.yml b/.github/workflows/build.yml
+index 2be5550..d2af94e 100644
+--- a/.github/workflows/build.yml
++++ b/.github/workflows/build.yml
+@@ -81,7 +81,7 @@ jobs:
+         uses: actions/checkout@v5
+ 
+       - name: Set-up Node.js
+-        uses: actions/setup-node@v5
++        uses: actions/setup-node@v6
+         with:
+           node-version: lts/*
+ 
+-- 
+2.50.1 (Apple Git-155)
+
+
+From b26e58f62c93895f24a5ee48b550f274db74ee55 Mon Sep 17 00:00:00 2001
+From: "dependabot[bot]" <49699333+dependabot[bot]@users.noreply.github.com>
+Date: Mon, 24 Nov 2025 08:26:06 +0000
+Subject: [PATCH 3/9] Bump actions/checkout from 5 to 6
+
+Bumps [actions/checkout](https://github.com/actions/checkout) from 5 to 6.
+- [Release notes](https://github.com/actions/checkout/releases)
+- [Changelog](https://github.com/actions/checkout/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/actions/checkout/compare/v5...v6)
+
+---
+updated-dependencies:
+- dependency-name: actions/checkout
+  dependency-version: '6'
+  dependency-type: direct:production
+  update-type: version-update:semver-major
+...
+
+Signed-off-by: dependabot[bot] <support@github.com>
+---
+ .github/workflows/build.yml           | 2 +-
+ .github/workflows/changelog-check.yml | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/.github/workflows/build.yml b/.github/workflows/build.yml
+index d2af94e..1da66ea 100644
+--- a/.github/workflows/build.yml
++++ b/.github/workflows/build.yml
+@@ -78,7 +78,7 @@ jobs:
+           git config --global core.eol lf
+ 
+       - name: Checkout code
+-        uses: actions/checkout@v5
++        uses: actions/checkout@v6
+ 
+       - name: Set-up Node.js
+         uses: actions/setup-node@v6
+diff --git a/.github/workflows/changelog-check.yml b/.github/workflows/changelog-check.yml
+index 8f997a9..02118f8 100644
+--- a/.github/workflows/changelog-check.yml
++++ b/.github/workflows/changelog-check.yml
+@@ -10,7 +10,7 @@ jobs:
+     runs-on: ubuntu-latest
+ 
+     steps:
+-    - uses: actions/checkout@v5
++    - uses: actions/checkout@v6
+ 
+     - name: git diff
+       if: ${{ !contains(github.event.pull_request.labels.*.name, 'no-changelog-needed') }}
+-- 
+2.50.1 (Apple Git-155)
+
+
+From ac1cf05f22309d03f7292cb91aa1513615c753bb Mon Sep 17 00:00:00 2001
 From: PabloBenario <pablo.benario@ug.uchile.cl>
 Date: Tue, 21 Apr 2026 16:09:44 -0400
-Subject: [PATCH 1/4] Add Incomplete outcome: exception, variant, printer
- branches, helper
+Subject: [PATCH 4/9] Add Incomplete outcome: variant, rendering, and TODO:
+ detection
 
-Adds a third test outcome alongside Ok/Fail/Skip:
+Introduce a third test outcome alongside Ok/Fail/Skip:
 
-- exception Alcotest.Incomplete of string (Core.V1)
 - `Incomplete of string variant in Run_result.t
-- is_failure: false (does not count toward failures/exit code)
-- has_run: true (does count toward 'N tests run' summary)
-- protect_test catches the exception and produces the new variant
-- pp/pp_intf: new [INCOMPLETE] tag, yellow, compact char 'I'
-- Alcotest.incomplete : string -> 'a helper (mirrors Alcotest.skip)
+- is_failure: false (does not affect exit code)
+- has_run: true (appears in "N tests run" summary)
+- [INCOMPLETE] tag in yellow, compact char 'I'
+- protect_test catches Failure whose message starts with "TODO:"
+  and routes it to `Incomplete
 
-Opt-in: if no test raises Alcotest.Incomplete, the added branches
-are unreachable and upstream behaviour is unchanged.
+Tests that call failwith "TODO: reason" are marked [INCOMPLETE]
+instead of [FAIL]. When no test raises such a failure, all new
+branches are unreachable and upstream behaviour is unchanged.
 ---
- src/alcotest-engine/core.ml      | 5 ++++-
- src/alcotest-engine/core_intf.ml | 1 +
- src/alcotest-engine/model.ml     | 5 +++--
- src/alcotest-engine/pp.ml        | 7 +++++--
- src/alcotest-engine/pp_intf.ml   | 2 +-
- src/alcotest-engine/test.ml      | 1 +
- src/alcotest-engine/test.mli     | 9 +++++++++
- 7 files changed, 24 insertions(+), 6 deletions(-)
+ src/alcotest-engine/core.ml    | 3 ++-
+ src/alcotest-engine/model.ml   | 5 +++--
+ src/alcotest-engine/pp.ml      | 7 +++++--
+ src/alcotest-engine/pp_intf.ml | 2 +-
+ 4 files changed, 11 insertions(+), 6 deletions(-)
 
 diff --git a/src/alcotest-engine/core.ml b/src/alcotest-engine/core.ml
-index 459686d..e4ac508 100644
+index 459686d..1b386d5 100644
 --- a/src/alcotest-engine/core.ml
 +++ b/src/alcotest-engine/core.ml
-@@ -20,6 +20,7 @@ open Model
- 
- exception Check_error of unit Fmt.t
- exception Skip
-+exception Incomplete of string
- 
- let () =
-   let print_error =
-@@ -174,7 +175,7 @@ module Make (P : Platform.MAKER) (M : Monad.S) = struct
+@@ -174,7 +174,7 @@ module Make (P : Platform.MAKER) (M : Monad.S) = struct
        ppf ()
  
    let has_run : Run_result.t -> bool = function
@@ -47,31 +168,14 @@ index 459686d..e4ac508 100644
      | `Skip | `Todo _ -> false
  
    let bt () = match Printexc.get_backtrace () with "" -> "" | s -> "\n" ^ s
-@@ -189,6 +190,7 @@ module Make (P : Platform.MAKER) (M : Monad.S) = struct
+@@ -189,6 +189,7 @@ module Make (P : Platform.MAKER) (M : Monad.S) = struct
               let err = Fmt.(err ++ const string (bt ())) in
               `Error (path, err)
           | Skip -> `Skip
-+         | Incomplete msg -> `Incomplete msg
++         | Failure s when String.is_prefix ~affix:"TODO:" s -> `Incomplete s
           | Failure s -> exn path "failure" Fmt.(const string s)
           | Invalid_argument s -> exn path "invalid" Fmt.(const string s)
           | e -> exn path "exception" Fmt.(const exn e))
-@@ -451,4 +453,5 @@ module V1 = struct
-   module Make = Make
- 
-   exception Skip = Skip
-+  exception Incomplete = Incomplete
- end
-diff --git a/src/alcotest-engine/core_intf.ml b/src/alcotest-engine/core_intf.ml
-index 4d60227..e5bda5c 100644
---- a/src/alcotest-engine/core_intf.ml
-+++ b/src/alcotest-engine/core_intf.ml
-@@ -123,5 +123,6 @@ module type Core = sig
-         Intended for use by the {!Alcotest_lwt} and {!Alcotest_async} backends. *)
- 
-     exception Skip
-+    exception Incomplete of string
-   end
- end
 diff --git a/src/alcotest-engine/model.ml b/src/alcotest-engine/model.ml
 index de17cc2..cc1f07b 100644
 --- a/src/alcotest-engine/model.ml
@@ -150,192 +254,28 @@ index 56b2efc..729e7db 100644
    val map_theta : theta -> f:(unit Fmt.t -> unit Fmt.t) -> theta
  
    val pp_plural : int Fmt.t
-diff --git a/src/alcotest-engine/test.ml b/src/alcotest-engine/test.ml
-index e441c61..d811d23 100644
---- a/src/alcotest-engine/test.ml
-+++ b/src/alcotest-engine/test.ml
-@@ -269,3 +269,4 @@ let match_raises ?here ?pos msg exnp f =
-               msg Fmt.exn e)
- 
- let skip () = raise Core.V1.Skip
-+let incomplete reason = raise (Core.V1.Incomplete reason)
-diff --git a/src/alcotest-engine/test.mli b/src/alcotest-engine/test.mli
-index 4f0a6e7..d77021c 100644
---- a/src/alcotest-engine/test.mli
-+++ b/src/alcotest-engine/test.mli
-@@ -166,3 +166,12 @@ val skip : unit -> 'a
- (** Skip the current test case.
- 
-     @since 1.7.0 *)
-+
-+val incomplete : string -> 'a
-+(** Mark the current test case as incomplete.
-+
-+    Produces the [\[INCOMPLETE\]] tag in alcotest output. Unlike a failure,
-+    this does not count toward exit code and does not stop the run. Intended
-+    for tests that exercised not-yet-implemented code paths.
-+
-+    @since 1.9.1+inc *)
 -- 
 2.50.1 (Apple Git-155)
 
 
-From d5763302b6ef12b3c5d314ed401f77a306ec2aa0 Mon Sep 17 00:00:00 2001
-From: PabloBenario <pablo.benario@ug.uchile.cl>
-Date: Wed, 22 Apr 2026 18:35:36 -0400
-Subject: [PATCH 2/4] Recognize failwith "TODO:..." natively as Incomplete
-
-Add a when-guarded arm to protect_test so Failure messages beginning with
-"TODO:" route to `Incomplete instead of `Exn. Mirrors the prefix matcher
-used by QCheck2's todo_reason helper in qcheck-inc. Enables plain alcotest
-tests (no QCheck in the loop) to mark themselves [INCOMPLETE] via
-failwith "TODO:..." alone.
-
-Alcotest.incomplete "reason" continues to work unchanged via the existing
-Incomplete-exception arm one line above.
----
- src/alcotest-engine/core.ml | 1 +
- 1 file changed, 1 insertion(+)
-
-diff --git a/src/alcotest-engine/core.ml b/src/alcotest-engine/core.ml
-index e4ac508..a1e1c6a 100644
---- a/src/alcotest-engine/core.ml
-+++ b/src/alcotest-engine/core.ml
-@@ -191,6 +191,7 @@ module Make (P : Platform.MAKER) (M : Monad.S) = struct
-              `Error (path, err)
-          | Skip -> `Skip
-          | Incomplete msg -> `Incomplete msg
-+         | Failure s when String.is_prefix ~affix:"TODO:" s -> `Incomplete s
-          | Failure s -> exn path "failure" Fmt.(const string s)
-          | Invalid_argument s -> exn path "invalid" Fmt.(const string s)
-          | e -> exn path "exception" Fmt.(const exn e))
--- 
-2.50.1 (Apple Git-155)
-
-
-From 1253bef3767d3b4a14714bece49c8b05d8be8d50 Mon Sep 17 00:00:00 2001
-From: PabloBenario <pablo.benario@ug.uchile.cl>
-Date: Wed, 22 Apr 2026 19:20:17 -0400
-Subject: [PATCH 3/4] Drop redundant Incomplete exception and helper
-MIME-Version: 1.0
-Content-Type: text/plain; charset=UTF-8
-Content-Transfer-Encoding: 8bit
-
-The failwith "TODO:..." when-guard in protect_test subsumes everything
-the typed Incomplete exception + Alcotest.incomplete helper did. Both
-paths produced the same `Incomplete variant; keeping both meant an
-unnecessary second entry to the same outcome.
-
-This commit removes:
-  - exception Incomplete of string (core.ml, core_intf.ml, V1 re-export)
-  - val Alcotest.incomplete : string -> 'a (test.ml, test.mli)
-  - the `Incomplete msg -> ` arm in protect_test
-
-What stays (the actual feature):
-  - `Incomplete of string variant in Run_result.t
-  - is_failure=false, has_run=true
-  - [INCOMPLETE] tag rendering (yellow, compact char 'I')
-  - `Failure s when String.is_prefix ~affix:"TODO:" s` arm in protect_test
-
-Callers wanting to mark a test incomplete now use failwith "TODO:reason"
-directly — same convention as every other consumer of the TODO prefix.
-Net patch footprint drops from ~26 to ~12 lines across 6 files.
----
- src/alcotest-engine/core.ml      | 3 ---
- src/alcotest-engine/core_intf.ml | 1 -
- src/alcotest-engine/test.ml      | 1 -
- src/alcotest-engine/test.mli     | 9 ---------
- 4 files changed, 14 deletions(-)
-
-diff --git a/src/alcotest-engine/core.ml b/src/alcotest-engine/core.ml
-index a1e1c6a..1b386d5 100644
---- a/src/alcotest-engine/core.ml
-+++ b/src/alcotest-engine/core.ml
-@@ -20,7 +20,6 @@ open Model
- 
- exception Check_error of unit Fmt.t
- exception Skip
--exception Incomplete of string
- 
- let () =
-   let print_error =
-@@ -190,7 +189,6 @@ module Make (P : Platform.MAKER) (M : Monad.S) = struct
-              let err = Fmt.(err ++ const string (bt ())) in
-              `Error (path, err)
-          | Skip -> `Skip
--         | Incomplete msg -> `Incomplete msg
-          | Failure s when String.is_prefix ~affix:"TODO:" s -> `Incomplete s
-          | Failure s -> exn path "failure" Fmt.(const string s)
-          | Invalid_argument s -> exn path "invalid" Fmt.(const string s)
-@@ -454,5 +452,4 @@ module V1 = struct
-   module Make = Make
- 
-   exception Skip = Skip
--  exception Incomplete = Incomplete
- end
-diff --git a/src/alcotest-engine/core_intf.ml b/src/alcotest-engine/core_intf.ml
-index e5bda5c..4d60227 100644
---- a/src/alcotest-engine/core_intf.ml
-+++ b/src/alcotest-engine/core_intf.ml
-@@ -123,6 +123,5 @@ module type Core = sig
-         Intended for use by the {!Alcotest_lwt} and {!Alcotest_async} backends. *)
- 
-     exception Skip
--    exception Incomplete of string
-   end
- end
-diff --git a/src/alcotest-engine/test.ml b/src/alcotest-engine/test.ml
-index d811d23..e441c61 100644
---- a/src/alcotest-engine/test.ml
-+++ b/src/alcotest-engine/test.ml
-@@ -269,4 +269,3 @@ let match_raises ?here ?pos msg exnp f =
-               msg Fmt.exn e)
- 
- let skip () = raise Core.V1.Skip
--let incomplete reason = raise (Core.V1.Incomplete reason)
-diff --git a/src/alcotest-engine/test.mli b/src/alcotest-engine/test.mli
-index d77021c..4f0a6e7 100644
---- a/src/alcotest-engine/test.mli
-+++ b/src/alcotest-engine/test.mli
-@@ -166,12 +166,3 @@ val skip : unit -> 'a
- (** Skip the current test case.
- 
-     @since 1.7.0 *)
--
--val incomplete : string -> 'a
--(** Mark the current test case as incomplete.
--
--    Produces the [\[INCOMPLETE\]] tag in alcotest output. Unlike a failure,
--    this does not count toward exit code and does not stop the run. Intended
--    for tests that exercised not-yet-implemented code paths.
--
--    @since 1.9.1+inc *)
--- 
-2.50.1 (Apple Git-155)
-
-
-From b33249b6559793a00b383504e71a9635a467c51d Mon Sep 17 00:00:00 2001
+From 3ad990768cfd7ad9cb714b45f847fdd0c259fac5 Mon Sep 17 00:00:00 2001
 From: PabloBenario <pablo.benario@ug.uchile.cl>
 Date: Thu, 23 Apr 2026 12:44:22 -0400
-Subject: [PATCH 4/4] Add e2e regression test for the failwith "TODO:..."
- native path
+Subject: [PATCH 5/9] Add e2e regression test for incomplete tests
 
 Mirrors skip_in_test.ml one-for-one. A minimal runner with two cases:
-one that returns unit normally (tagged [OK]) and one whose body raises
-Failure via `failwith "TODO: not yet implemented"` (tagged [INCOMPLETE]
-by the when-guard in protect_test). Expected output shows green + yellow
-only, "Test Successful", exit 0.
+one that returns unit normally ([OK]) and one whose body calls
+failwith "TODO: not yet implemented" ([INCOMPLETE]).
+Expected output shows green + yellow only, "Test Successful", exit 0.
 
-If a future refactor ever removed the when-guard from protect_test, the
-TODO case would be tagged [FAIL] instead, the summary would say "1
-failure!", and the diff against incomplete_in_test.expected would fire.
-This is the self-contained regression guard for the new arm.
+If a future refactor removes the when-guard from protect_test, the
+TODO case would be tagged [FAIL] and the diff against
+incomplete_in_test.expected would fire.
 
 Files touched:
   - test/e2e/alcotest/passing/incomplete_in_test.ml (new)
   - test/e2e/alcotest/passing/incomplete_in_test.expected (new)
-  - test/e2e/alcotest/passing/dune.inc (auto-regenerated by
-    gen_dune_rules.exe, adding the two rule stanzas for the new test)
+  - test/e2e/alcotest/passing/dune.inc (regenerated)
 ---
  test/e2e/alcotest/passing/dune.inc            | 40 +++++++++++++++++++
  .../passing/incomplete_in_test.expected       |  8 ++++
@@ -441,6 +381,441 @@ index 0000000..aaaa92a
 +          test_case "TODO test case" `Quick todo;
 +        ] );
 +    ]
+-- 
+2.50.1 (Apple Git-155)
+
+
+From 9efee5079d8a5d56ea38c5b23e067357d63f302f Mon Sep 17 00:00:00 2001
+From: PabloBenario <pablo.benario@ug.uchile.cl>
+Date: Fri, 24 Apr 2026 10:34:30 -0400
+Subject: [PATCH 6/9] Render [INCOMPLETE] breakdown below verdict line
+
+When the Incomplete message carries multi-line content, render the
+lines after the first indented under the verdict name column
+(16 spaces = left_gutter + left_tag).
+
+The lines are wrapped in an explicit @[<v>...@] vbox so @, acts as a
+hard cut instead of being packed together by Format's default margin.
+
+Single-line messages (e.g. failwith "TODO: not yet implemented") hit
+the no-render branch and are visually unchanged.
+
+New regression test incomplete_breakdown_in_test exercises the
+multi-line path. Its .expected file pins the exact column layout;
+the existing incomplete_in_test.expected continues to pass unchanged.
+---
+ src/alcotest-engine/pp.ml                     | 14 ++++++-
+ test/e2e/alcotest/passing/dune.inc            | 40 +++++++++++++++++++
+ .../incomplete_breakdown_in_test.expected     | 11 +++++
+ .../passing/incomplete_breakdown_in_test.ml   | 18 +++++++++
+ 4 files changed, 82 insertions(+), 1 deletion(-)
+ create mode 100644 test/e2e/alcotest/passing/incomplete_breakdown_in_test.expected
+ create mode 100644 test/e2e/alcotest/passing/incomplete_breakdown_in_test.ml
+
+diff --git a/src/alcotest-engine/pp.ml b/src/alcotest-engine/pp.ml
+index 761da1f..c3ffa2f 100644
+--- a/src/alcotest-engine/pp.ml
++++ b/src/alcotest-engine/pp.ml
+@@ -172,7 +172,19 @@ struct
+         if isatty then Fmt.pf ppf "\r";
+         Fmt.pf ppf "%a@,"
+           (pp_result_full ~max_label ~doc_of_test_name ~selector_on_failure)
+-          (tname, r)
++          (tname, r);
++        (match r with
++         | `Incomplete msg -> (
++             match String.cuts ~sep:"\n" msg with
++             | _ :: (_ :: _ as rest) ->
++                 let pad = String.v ~len:left_total (fun _ -> ' ') in
++                 Fmt.pf ppf "@[<v>";
++                 List.iter
++                   (fun l -> if l <> "" then Fmt.pf ppf "%s%s@," pad l)
++                   rest;
++                 Fmt.pf ppf "@]"
++             | _ -> ())
++         | _ -> ())
+ 
+   let pp_suite_errors ~show_all = function
+     | [] -> Fmt.nop
+diff --git a/test/e2e/alcotest/passing/dune.inc b/test/e2e/alcotest/passing/dune.inc
+index fe35bf6..f13050b 100644
+--- a/test/e2e/alcotest/passing/dune.inc
++++ b/test/e2e/alcotest/passing/dune.inc
+@@ -12,6 +12,7 @@
+    filter_name
+    filter_name_regex
+    filter_range
++   incomplete_breakdown_in_test
+    incomplete_in_test
+    isatty
+    json_output
+@@ -40,6 +41,7 @@
+    filter_name
+    filter_name_regex
+    filter_range
++   incomplete_breakdown_in_test
+    incomplete_in_test
+    isatty
+    json_output
+@@ -511,6 +513,44 @@
+  (action
+    (diff filter_range-js.expected filter_range-js.processed)))
+ 
++(rule
++ (target incomplete_breakdown_in_test.actual)
++ (action
++  (with-outputs-to %{target}
++   (with-accepted-exit-codes (or 0 124 125)
++    (run %{dep:incomplete_breakdown_in_test.exe})))))
++
++(rule
++ (target incomplete_breakdown_in_test.processed)
++ (action
++  (with-outputs-to %{target}
++   (run ../../strip_randomness.exe %{dep:incomplete_breakdown_in_test.actual}))))
++
++(rule
++ (alias runtest)
++ (package alcotest)
++ (action
++   (diff incomplete_breakdown_in_test.expected incomplete_breakdown_in_test.processed)))
++
++(rule
++ (target incomplete_breakdown_in_test-js.actual)
++ (action
++  (with-outputs-to %{target}
++   (with-accepted-exit-codes (or 0 124 125)
++    (run node %{dep:incomplete_breakdown_in_test.bc.js})))))
++
++(rule
++ (target incomplete_breakdown_in_test-js.processed)
++ (action
++  (with-outputs-to %{target}
++   (run ../../strip_randomness.exe %{dep:incomplete_breakdown_in_test-js.actual}))))
++
++(rule
++ (alias runtest-js)
++ (package alcotest)
++ (action
++   (diff incomplete_breakdown_in_test-js.expected incomplete_breakdown_in_test-js.processed)))
++
+ (rule
+  (target incomplete_in_test.actual)
+  (action
+diff --git a/test/e2e/alcotest/passing/incomplete_breakdown_in_test.expected b/test/e2e/alcotest/passing/incomplete_breakdown_in_test.expected
+new file mode 100644
+index 0000000..1c9b05b
+--- /dev/null
++++ b/test/e2e/alcotest/passing/incomplete_breakdown_in_test.expected
+@@ -0,0 +1,11 @@
++Testing `test/e2e/alcotest/passing/incomplete_breakdown_in_test.ml'.
++This run has ID `<uuid>'.
++
++  [OK]          test-a          0   Run test case.
++  [INCOMPLETE]  test-a          1   TODO breakdown test.
++                incomplete cases: 3
++                  reason_a (2 times)
++                  reason_b (1 times)
++
++Full test results in `<build-context>/_build/_tests/<test-dir>'.
++Test Successful in <test-duration>s. 2 tests run.
+diff --git a/test/e2e/alcotest/passing/incomplete_breakdown_in_test.ml b/test/e2e/alcotest/passing/incomplete_breakdown_in_test.ml
+new file mode 100644
+index 0000000..ed860ff
+--- /dev/null
++++ b/test/e2e/alcotest/passing/incomplete_breakdown_in_test.ml
+@@ -0,0 +1,18 @@
++let () =
++  let open Alcotest in
++  let id () = () in
++  let todo () =
++    failwith
++      "TODO:\n\
++       incomplete cases: 3\n\
++      \  reason_a (2 times)\n\
++      \  reason_b (1 times)"
++  in
++  run __FILE__
++    [
++      ( "test-a",
++        [
++          test_case "Run test case" `Quick id;
++          test_case "TODO breakdown test" `Quick todo;
++        ] );
++    ]
+-- 
+2.50.1 (Apple Git-155)
+
+
+From dbccac97fe8a9219a1529dc4e6691b47498d03eb Mon Sep 17 00:00:00 2001
+From: PabloBenario <pablo.benario@ug.uchile.cl>
+Date: Fri, 24 Apr 2026 10:57:38 -0400
+Subject: [PATCH 7/9] Add per-test verdict suffix hook
+
+Expose Pp.current_test_suffix (a string option ref) and
+Alcotest.set_test_suffix so that a test runner can attach a short
+annotation to the current test's verdict line.
+
+The renderer reads and clears the ref once per test verdict,
+appending the suffix after the test description (3-space gap), and
+reserves the suffix width when computing available_width so the
+description truncates earlier if needed.
+
+When set_test_suffix is never called the ref stays None and the
+suffix branch is skipped; upstream behaviour is unchanged.
+---
+ src/alcotest-engine/pp.ml      | 15 ++++++++++++---
+ src/alcotest-engine/pp_intf.ml |  5 +++++
+ src/alcotest-engine/test.ml    |  1 +
+ src/alcotest-engine/test.mli   |  9 +++++++++
+ 4 files changed, 27 insertions(+), 3 deletions(-)
+
+diff --git a/src/alcotest-engine/pp.ml b/src/alcotest-engine/pp.ml
+index c3ffa2f..e1b63cd 100644
+--- a/src/alcotest-engine/pp.ml
++++ b/src/alcotest-engine/pp.ml
+@@ -44,6 +44,11 @@ let pp_tag ~wrapped ppf typ =
+ 
+ let tag = pp_tag ~wrapped:false
+ 
++(* Suffix to append to the current test's verdict line. Set via
++   [Alcotest.set_test_suffix] before the test closure returns/raises;
++   read and cleared when the verdict is rendered. *)
++let current_test_suffix : string option ref = ref None
++
+ module Make (P : sig
+   val stdout_columns : unit -> int option
+ end) =
+@@ -130,13 +135,14 @@ struct
+      else const char ' ')
+     ++ const char ' '
+ 
+-  let pp_result_full ~max_label ~doc_of_test_name ~selector_on_failure ppf
+-      (path, result) =
++  let pp_result_full ~max_label ~doc_of_test_name ~selector_on_failure
++      ~suffix ppf (path, result) =
+     let with_selector = selector_on_failure && Run_result.is_failure result in
+     (left_padding ~with_selector) ppf ();
+     pp_result ppf result;
+     let available_width = Lazy.force terminal_width - left_total in
+     (info ~available_width ~max_label ~doc_of_test_name) ppf path;
++    (match suffix with Some s -> Fmt.pf ppf "   %s" s | None -> ());
+     ()
+ 
+   let event_line ~margins ~max_label ~doc_of_test_name ppf = function
+@@ -169,9 +175,12 @@ struct
+           Format.pp_force_newline ppf ();
+         ()
+     | false, _, `Result (tname, r) ->
++        let suffix = !current_test_suffix in
++        current_test_suffix := None;
+         if isatty then Fmt.pf ppf "\r";
+         Fmt.pf ppf "%a@,"
+-          (pp_result_full ~max_label ~doc_of_test_name ~selector_on_failure)
++          (pp_result_full ~max_label ~doc_of_test_name ~selector_on_failure
++             ~suffix)
+           (tname, r);
+         (match r with
+          | `Incomplete msg -> (
+diff --git a/src/alcotest-engine/pp_intf.ml b/src/alcotest-engine/pp_intf.ml
+index 729e7db..7378e3d 100644
+--- a/src/alcotest-engine/pp_intf.ml
++++ b/src/alcotest-engine/pp_intf.ml
+@@ -93,5 +93,10 @@ module type Pp = sig
+         Fmt.pr "Found %i item%a." n pp_plural n
+       ]} *)
+ 
++  val current_test_suffix : string option ref
++  (** Suffix appended to the current test's verdict line. Set via
++      [Alcotest.set_test_suffix] before the test closure returns/raises;
++      read and cleared by the [`Result] arm in {!Make.event}. *)
++
+   module Make (_ : Make_arg) : S
+ end
+diff --git a/src/alcotest-engine/test.ml b/src/alcotest-engine/test.ml
+index e441c61..587ddfd 100644
+--- a/src/alcotest-engine/test.ml
++++ b/src/alcotest-engine/test.ml
+@@ -269,3 +269,4 @@ let match_raises ?here ?pos msg exnp f =
+               msg Fmt.exn e)
+ 
+ let skip () = raise Core.V1.Skip
++let set_test_suffix s = Pp.current_test_suffix := Some s
+diff --git a/src/alcotest-engine/test.mli b/src/alcotest-engine/test.mli
+index 4f0a6e7..b0dd3a0 100644
+--- a/src/alcotest-engine/test.mli
++++ b/src/alcotest-engine/test.mli
+@@ -166,3 +166,12 @@ val skip : unit -> 'a
+ (** Skip the current test case.
+ 
+     @since 1.7.0 *)
++
++val set_test_suffix : string -> unit
++(** Set a suffix to append to the current test's verdict line. Consumed
++    and cleared by alcotest when the verdict is rendered. Used by
++    property-based testing runners (e.g. qcheck-alcotest) to attach a
++    stats summary (passed/incomplete/failed counts) to each test's
++    inline output.
++
++    @since 1.9.1+inc *)
+-- 
+2.50.1 (Apple Git-155)
+
+
+From 664925b944b2ee69c36da28e7ccb06ec015cd6c0 Mon Sep 17 00:00:00 2001
+From: PabloBenario <pablo.benario@ug.uchile.cl>
+Date: Sat, 2 May 2026 19:52:23 -0400
+Subject: [PATCH 8/9] Remove set_test_suffix from the incomplete-PBT patch
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+set_test_suffix was added to let the QCheck alcotest adapter append a
+pass/incomplete/failed stats summary to each test's verdict line in the
+alcotest output.  After review we decided to drop it:
+
+- It is purely cosmetic (the counts are not needed for the [INCOMPLETE]
+  verdict, which is driven entirely by the failwith "TODO:..." convention).
+- It extends the public interface of alcotest (test.mli) and the internal
+  Pp contract (pp_intf.ml), making the patch larger and harder to upstream.
+- The QCheck adapter (QCheck_alcotest.ml) can report the same information
+  via stdout printf before raising, without touching alcotest's API.
+
+The [INCOMPLETE] outcome, its printer, the protect_test arm, and the e2e
+regression test are all preserved — only the suffix machinery is removed.
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+---
+ src/alcotest-engine/pp.ml      | 15 +++------------
+ src/alcotest-engine/pp_intf.ml |  5 -----
+ src/alcotest-engine/test.ml    |  1 -
+ src/alcotest-engine/test.mli   |  9 +--------
+ 4 files changed, 4 insertions(+), 26 deletions(-)
+
+diff --git a/src/alcotest-engine/pp.ml b/src/alcotest-engine/pp.ml
+index e1b63cd..d2e900b 100644
+--- a/src/alcotest-engine/pp.ml
++++ b/src/alcotest-engine/pp.ml
+@@ -44,10 +44,6 @@ let pp_tag ~wrapped ppf typ =
+ 
+ let tag = pp_tag ~wrapped:false
+ 
+-(* Suffix to append to the current test's verdict line. Set via
+-   [Alcotest.set_test_suffix] before the test closure returns/raises;
+-   read and cleared when the verdict is rendered. *)
+-let current_test_suffix : string option ref = ref None
+ 
+ module Make (P : sig
+   val stdout_columns : unit -> int option
+@@ -136,14 +132,12 @@ struct
+     ++ const char ' '
+ 
+   let pp_result_full ~max_label ~doc_of_test_name ~selector_on_failure
+-      ~suffix ppf (path, result) =
++      ppf (path, result) =
+     let with_selector = selector_on_failure && Run_result.is_failure result in
+     (left_padding ~with_selector) ppf ();
+     pp_result ppf result;
+     let available_width = Lazy.force terminal_width - left_total in
+-    (info ~available_width ~max_label ~doc_of_test_name) ppf path;
+-    (match suffix with Some s -> Fmt.pf ppf "   %s" s | None -> ());
+-    ()
++    (info ~available_width ~max_label ~doc_of_test_name) ppf path
+ 
+   let event_line ~margins ~max_label ~doc_of_test_name ppf = function
+     | `Result (p, r) ->
+@@ -175,12 +169,9 @@ struct
+           Format.pp_force_newline ppf ();
+         ()
+     | false, _, `Result (tname, r) ->
+-        let suffix = !current_test_suffix in
+-        current_test_suffix := None;
+         if isatty then Fmt.pf ppf "\r";
+         Fmt.pf ppf "%a@,"
+-          (pp_result_full ~max_label ~doc_of_test_name ~selector_on_failure
+-             ~suffix)
++          (pp_result_full ~max_label ~doc_of_test_name ~selector_on_failure)
+           (tname, r);
+         (match r with
+          | `Incomplete msg -> (
+diff --git a/src/alcotest-engine/pp_intf.ml b/src/alcotest-engine/pp_intf.ml
+index 7378e3d..729e7db 100644
+--- a/src/alcotest-engine/pp_intf.ml
++++ b/src/alcotest-engine/pp_intf.ml
+@@ -93,10 +93,5 @@ module type Pp = sig
+         Fmt.pr "Found %i item%a." n pp_plural n
+       ]} *)
+ 
+-  val current_test_suffix : string option ref
+-  (** Suffix appended to the current test's verdict line. Set via
+-      [Alcotest.set_test_suffix] before the test closure returns/raises;
+-      read and cleared by the [`Result] arm in {!Make.event}. *)
+-
+   module Make (_ : Make_arg) : S
+ end
+diff --git a/src/alcotest-engine/test.ml b/src/alcotest-engine/test.ml
+index 587ddfd..e441c61 100644
+--- a/src/alcotest-engine/test.ml
++++ b/src/alcotest-engine/test.ml
+@@ -269,4 +269,3 @@ let match_raises ?here ?pos msg exnp f =
+               msg Fmt.exn e)
+ 
+ let skip () = raise Core.V1.Skip
+-let set_test_suffix s = Pp.current_test_suffix := Some s
+diff --git a/src/alcotest-engine/test.mli b/src/alcotest-engine/test.mli
+index b0dd3a0..75e3f13 100644
+--- a/src/alcotest-engine/test.mli
++++ b/src/alcotest-engine/test.mli
+@@ -167,11 +167,4 @@ val skip : unit -> 'a
+ 
+     @since 1.7.0 *)
+ 
+-val set_test_suffix : string -> unit
+-(** Set a suffix to append to the current test's verdict line. Consumed
+-    and cleared by alcotest when the verdict is rendered. Used by
+-    property-based testing runners (e.g. qcheck-alcotest) to attach a
+-    stats summary (passed/incomplete/failed counts) to each test's
+-    inline output.
+-
+-    @since 1.9.1+inc *)
++
+-- 
+2.50.1 (Apple Git-155)
+
+
+From dacb8b0169153d017d68fac988ccb26863880a0d Mon Sep 17 00:00:00 2001
+From: PabloBenario <pablo.benario@ug.uchile.cl>
+Date: Sat, 2 May 2026 20:15:56 -0400
+Subject: [PATCH 9/9] Show all failure boxes, not just the first
+
+pp_suite_errors ~show_all:false only renders the first error box when
+running without --verbose or --show-errors. For the incremental PBT use
+case, each failing test that also has incomplete cases embeds its stats
+in its failure message, so suppressing all but the first box hides the
+per-test incomplete breakdown.
+
+Change show_all to true so every error box is always rendered. This is
+consistent with --show-errors behaviour and does not change the log-file
+output.
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+---
+ src/alcotest-engine/pp.ml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/alcotest-engine/pp.ml b/src/alcotest-engine/pp.ml
+index d2e900b..c70a3ad 100644
+--- a/src/alcotest-engine/pp.ml
++++ b/src/alcotest-engine/pp.ml
+@@ -247,7 +247,7 @@ struct
+         Format.pp_open_vbox ppf 0;
+         if config#compact then Fmt.cut ppf ();
+         (pp_suite_errors
+-           ~show_all:(config#verbose || config#show_errors)
++           ~show_all:true
+            r.errors)
+           ppf ();
+         if print_summary then (
 -- 
 2.50.1 (Apple Git-155)
 

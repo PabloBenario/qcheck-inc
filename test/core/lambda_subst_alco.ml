@@ -308,23 +308,25 @@ let make_prop_subst_free_no_var_capture_open subst_fn name =
         let rhs = set_union (set_remove x free_t) (free_vars s) in
         if set_equal lhs rhs then true
         else
-          let captured = List.filter (fun v -> not (List.mem v lhs)) rhs in
-          let unexpected = List.filter (fun v -> not (List.mem v rhs)) lhs in
-          Printf.printf "FAILURE!\n";
-          Printf.printf "  [v%d := %s] %s\n" x (print_term s) (print_term t);
-          Printf.printf "  result:   %s\n" (print_term res);
-          Printf.printf "  FV(result)   = {%s}\n"
-            (String.concat ", " (List.map (fun v -> "v" ^ string_of_int v) (normalize lhs)));
-          Printf.printf "  expected FVs = {%s}\n"
-            (String.concat ", " (List.map (fun v -> "v" ^ string_of_int v) (normalize rhs)));
-          (match captured with
-           | [] -> ()
-           | _ -> Printf.printf "  captured (should be free but aren't): {%s}\n"
-                    (String.concat ", " (List.map (fun v -> "v" ^ string_of_int v) captured)));
-          (match unexpected with
-           | [] -> ()
-           | _ -> Printf.printf "  unexpected (free but shouldn't be): {%s}\n"
-                    (String.concat ", " (List.map (fun v -> "v" ^ string_of_int v) unexpected)));
+          (*******************************************************************************************)
+          (* let captured = List.filter (fun v -> not (List.mem v lhs)) rhs in                       *)
+          (* let unexpected = List.filter (fun v -> not (List.mem v rhs)) lhs in                     *)
+          (* Printf.printf "FAILURE!\n";                                                             *)
+          (* Printf.printf "  [v%d := %s] %s\n" x (print_term s) (print_term t);                     *)
+          (* Printf.printf "  result:   %s\n" (print_term res);                                      *)
+          (* Printf.printf "  FV(result)   = {%s}\n"                                                 *)
+          (*   (String.concat ", " (List.map (fun v -> "v" ^ string_of_int v) (normalize lhs)));     *)
+          (* Printf.printf "  expected FVs = {%s}\n"                                                 *)
+          (*   (String.concat ", " (List.map (fun v -> "v" ^ string_of_int v) (normalize rhs)));     *)
+          (* (match captured with                                                                    *)
+          (*  | [] -> ()                                                                             *)
+          (*  | _ -> Printf.printf "  captured (should be free but aren't): {%s}\n"                  *)
+          (*           (String.concat ", " (List.map (fun v -> "v" ^ string_of_int v) captured)));   *)
+          (* (match unexpected with                                                                  *)
+          (*  | [] -> ()                                                                             *)
+          (*  | _ -> Printf.printf "  unexpected (free but shouldn't be): {%s}\n"                    *)
+          (*           (String.concat ", " (List.map (fun v -> "v" ^ string_of_int v) unexpected))); *)
+          (*******************************************************************************************)
           false
       else true)
 
