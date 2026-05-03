@@ -1,7 +1,7 @@
 From a0897cfcba3e7cc9b7b0f3678da86277c9299af4 Mon Sep 17 00:00:00 2001
 From: Jan Midtgaard <mail@janmidtgaard.dk>
 Date: Thu, 9 Oct 2025 23:38:54 +0200
-Subject: [PATCH 1/9] Add missing conf-npm with-test dep to alcotest-js and
+Subject: [PATCH 01/10] Add missing conf-npm with-test dep to alcotest-js and
  regenerate opam file (#427)
 
 ---
@@ -39,7 +39,7 @@ index a8f6d75..4d75f0d 100644
 From 9461340df3d2d892f6c1a576bf9a6e385c7ae8e6 Mon Sep 17 00:00:00 2001
 From: "dependabot[bot]" <49699333+dependabot[bot]@users.noreply.github.com>
 Date: Mon, 20 Oct 2025 12:23:12 +0200
-Subject: [PATCH 2/9] Bump actions/setup-node from 5 to 6 (#428)
+Subject: [PATCH 02/10] Bump actions/setup-node from 5 to 6 (#428)
 
 Bumps [actions/setup-node](https://github.com/actions/setup-node) from 5 to 6.
 - [Release notes](https://github.com/actions/setup-node/releases)
@@ -79,7 +79,7 @@ index 2be5550..d2af94e 100644
 From b26e58f62c93895f24a5ee48b550f274db74ee55 Mon Sep 17 00:00:00 2001
 From: "dependabot[bot]" <49699333+dependabot[bot]@users.noreply.github.com>
 Date: Mon, 24 Nov 2025 08:26:06 +0000
-Subject: [PATCH 3/9] Bump actions/checkout from 5 to 6
+Subject: [PATCH 03/10] Bump actions/checkout from 5 to 6
 
 Bumps [actions/checkout](https://github.com/actions/checkout) from 5 to 6.
 - [Release notes](https://github.com/actions/checkout/releases)
@@ -133,7 +133,7 @@ index 8f997a9..02118f8 100644
 From ac1cf05f22309d03f7292cb91aa1513615c753bb Mon Sep 17 00:00:00 2001
 From: PabloBenario <pablo.benario@ug.uchile.cl>
 Date: Tue, 21 Apr 2026 16:09:44 -0400
-Subject: [PATCH 4/9] Add Incomplete outcome: variant, rendering, and TODO:
+Subject: [PATCH 04/10] Add Incomplete outcome: variant, rendering, and TODO:
  detection
 
 Introduce a third test outcome alongside Ok/Fail/Skip:
@@ -261,7 +261,7 @@ index 56b2efc..729e7db 100644
 From 3ad990768cfd7ad9cb714b45f847fdd0c259fac5 Mon Sep 17 00:00:00 2001
 From: PabloBenario <pablo.benario@ug.uchile.cl>
 Date: Thu, 23 Apr 2026 12:44:22 -0400
-Subject: [PATCH 5/9] Add e2e regression test for incomplete tests
+Subject: [PATCH 05/10] Add e2e regression test for incomplete tests
 
 Mirrors skip_in_test.ml one-for-one. A minimal runner with two cases:
 one that returns unit normally ([OK]) and one whose body calls
@@ -388,7 +388,7 @@ index 0000000..aaaa92a
 From 9efee5079d8a5d56ea38c5b23e067357d63f302f Mon Sep 17 00:00:00 2001
 From: PabloBenario <pablo.benario@ug.uchile.cl>
 Date: Fri, 24 Apr 2026 10:34:30 -0400
-Subject: [PATCH 6/9] Render [INCOMPLETE] breakdown below verdict line
+Subject: [PATCH 06/10] Render [INCOMPLETE] breakdown below verdict line
 
 When the Incomplete message carries multi-line content, render the
 lines after the first indented under the verdict name column
@@ -550,7 +550,7 @@ index 0000000..ed860ff
 From dbccac97fe8a9219a1529dc4e6691b47498d03eb Mon Sep 17 00:00:00 2001
 From: PabloBenario <pablo.benario@ug.uchile.cl>
 Date: Fri, 24 Apr 2026 10:57:38 -0400
-Subject: [PATCH 7/9] Add per-test verdict suffix hook
+Subject: [PATCH 07/10] Add per-test verdict suffix hook
 
 Expose Pp.current_test_suffix (a string option ref) and
 Alcotest.set_test_suffix so that a test runner can attach a short
@@ -665,7 +665,7 @@ index 4f0a6e7..b0dd3a0 100644
 From 664925b944b2ee69c36da28e7ccb06ec015cd6c0 Mon Sep 17 00:00:00 2001
 From: PabloBenario <pablo.benario@ug.uchile.cl>
 Date: Sat, 2 May 2026 19:52:23 -0400
-Subject: [PATCH 8/9] Remove set_test_suffix from the incomplete-PBT patch
+Subject: [PATCH 08/10] Remove set_test_suffix from the incomplete-PBT patch
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -786,7 +786,7 @@ index b0dd3a0..75e3f13 100644
 From dacb8b0169153d017d68fac988ccb26863880a0d Mon Sep 17 00:00:00 2001
 From: PabloBenario <pablo.benario@ug.uchile.cl>
 Date: Sat, 2 May 2026 20:15:56 -0400
-Subject: [PATCH 9/9] Show all failure boxes, not just the first
+Subject: [PATCH 09/10] Show all failure boxes, not just the first
 
 pp_suite_errors ~show_all:false only renders the first error box when
 running without --verbose or --show-errors. For the incremental PBT use
@@ -813,6 +813,41 @@ index d2e900b..c70a3ad 100644
          (pp_suite_errors
 -           ~show_all:(config#verbose || config#show_errors)
 +           ~show_all:true
+            r.errors)
+           ppf ();
+         if print_summary then (
+-- 
+2.50.1 (Apple Git-155)
+
+
+From 29a900f68e2b62d916d80a373fa9c359d0bf29b4 Mon Sep 17 00:00:00 2001
+From: PabloBenario <pablo.benario@ug.uchile.cl>
+Date: Sun, 3 May 2026 00:03:55 -0400
+Subject: [PATCH 10/10] =?UTF-8?q?Revert=20show=5Fall:true=20=E2=80=94=20ke?=
+ =?UTF-8?q?ep=20original=20config#verbose=20||=20config#show=5Ferrors?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Changing the default would affect all alcotest users, not just QCheck.
+Showing all error boxes should remain an opt-in via --verbose or
+--show-errors, which is upstream's intended contract.
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+---
+ src/alcotest-engine/pp.ml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/alcotest-engine/pp.ml b/src/alcotest-engine/pp.ml
+index c70a3ad..d2e900b 100644
+--- a/src/alcotest-engine/pp.ml
++++ b/src/alcotest-engine/pp.ml
+@@ -247,7 +247,7 @@ struct
+         Format.pp_open_vbox ppf 0;
+         if config#compact then Fmt.cut ppf ();
+         (pp_suite_errors
+-           ~show_all:true
++           ~show_all:(config#verbose || config#show_errors)
             r.errors)
            ppf ();
          if print_summary then (
