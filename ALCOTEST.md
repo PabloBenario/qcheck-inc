@@ -21,12 +21,61 @@ If nothing in the test suite raises `Failure "TODO:..."`, the patched
 alcotest behaves identically to upstream — the added code paths are
 simply unreachable.
 
+## Two variants
+
+Two branch pairs exist, one in each repo, exploring different ways to surface
+the per-test stats in the alcotest output:
+
+| Branch (both repos) | How stats appear | `Alcotest.set_test_suffix` |
+|---------------------|-----------------|---------------------------|
+| `with_set_suffix` | On the verdict line: `[FAIL] … 48 passed, 11 incomplete, 1 failed` | Yes — added to alcotest's public API |
+| `without_set_suffix` | In the failure exception message body | No — no new public API |
+
+Both branches produce `[INCOMPLETE]` for pure-incomplete tests. The
+`without_set_suffix` variant also works against stock (unpatched) alcotest,
+but `[INCOMPLETE]` will then display as `[FAIL]`.
+
+Use `run-inc-variants.zsh` (in `experimental/`) to switch and run both
+automatically:
+
+```sh
+../run-inc-variants.zsh with     # with_set_suffix
+../run-inc-variants.zsh without  # without_set_suffix
+../run-inc-variants.zsh          # both in sequence
+```
+
+### Why `without_set_suffix` cannot show stats on the verdict line
+
+The verdict line format is entirely controlled by alcotest:
+
+```
+  [TAG]  group_name  index  test_doc
+```
+
+`test_doc` is a string passed at **test registration time** and is fixed before
+the test runs. There is no mechanism in stock alcotest to update the verdict line
+after execution. The only hooks available to `QCheck_alcotest.ml` at runtime are
+the exception message (visible in the error box body, not the verdict line) and
+stdout (which alcotest's `\r`-overwrite stomps over).
+
+`set_test_suffix` is the minimal possible alcotest change that enables verdict-line
+annotations — a single mutable ref (`current_test_suffix : string option ref`) read
+and cleared when `pp.ml` renders the verdict. There is no smaller hook.
+
+As a result, `without_set_suffix` is genuinely less informative: stats only appear
+in the error box body (and only when there are incomplete cases), never on the
+verdict line. Tests with no incomplete cases (pure pass or pure fail) show no stats
+at all. `with_set_suffix` always shows counts for every test at a glance.
+
+The only reason to prefer `without_set_suffix` is compatibility with stock alcotest:
+it compiles and runs unchanged, with `[INCOMPLETE]` degrading silently to `[FAIL]`.
+
 ## Layout
 
 ```
 experimental/
-├── alcotest/                   # git clone of mirage/alcotest, branch qcheck-inc-incomplete
-│                               # based on tag 1.9.1, one patch commit on top
+├── alcotest/                   # git clone of mirage/alcotest, branch with_set_suffix or without_set_suffix
+│                               # based on tag 1.9.1, patch commits on top
 └── qcheck-inc/                 # this repo
     ├── patches/
     │   └── alcotest-incomplete.patch   # the patch, for reproducibility
@@ -46,7 +95,7 @@ and an opam pin pointing at it.
 ```sh
 git clone git@github.com:mirage/alcotest.git ../alcotest
 git -C ../alcotest checkout 1.9.1
-git -C ../alcotest switch -c qcheck-inc-incomplete
+git -C ../alcotest switch -c with_set_suffix
 git -C ../alcotest am ./patches/alcotest-incomplete.patch
 ```
 
@@ -55,7 +104,7 @@ git -C ../alcotest am ./patches/alcotest-incomplete.patch
 ```sh
 git -C ../alcotest fetch --tags
 git -C ../alcotest checkout 1.9.1
-git -C ../alcotest switch -c qcheck-inc-incomplete
+git -C ../alcotest switch -c with_set_suffix
 git -C ../alcotest am ./patches/alcotest-incomplete.patch
 ```
 
@@ -75,26 +124,29 @@ opam pin list | grep alcotest
 # alcotest.1.9.1  rsync  file:///…/experimental/alcotest
 ```
 
-## Important: branch must be `qcheck-inc-incomplete` at build time
+## Important: alcotest branch must match the qcheck-inc branch
 
 The pin follows the **working tree** of `../alcotest/`, not a specific branch.
-If you switch `../alcotest/` back to `main` (to pull upstream, test something,
-etc.), the next `dune build` inside `qcheck-inc` will link against unpatched
-alcotest and `failwith "TODO:..."` cases will silently be tagged `[FAIL]`
-(with a nonzero exit code) instead of `[INCOMPLETE]` (exit 0). No build
-error — the degradation is purely behavioural, because the bridge never
-touched any alcotest-specific identifier.
+Both repos must be on matching branches (`with_set_suffix` or `without_set_suffix`)
+for a consistent build. If you switch `../alcotest/` to `main`, the next
+`dune build` will link against unpatched alcotest and `failwith "TODO:..."` cases
+will silently be tagged `[FAIL]` instead of `[INCOMPLETE]`. No build error —
+purely behavioural degradation.
 
 Quick guard before building:
 
 ```sh
-git -C ../alcotest branch --show-current   # expect: qcheck-inc-incomplete
+git -C ../alcotest branch --show-current   # expect: with_set_suffix or without_set_suffix
+git -C ../qcheck-inc branch --show-current # expect: same branch
 ```
 
-Switch back if needed:
+Use `run-inc-variants.zsh` to switch both repos atomically (see "Two variants" above).
+Or switch manually:
 
 ```sh
-git -C ../alcotest switch qcheck-inc-incomplete
+git -C ../alcotest switch with_set_suffix
+git -C ../qcheck-inc switch with_set_suffix
+opam reinstall alcotest --yes
 ```
 
 ## Working on the patch
@@ -110,25 +162,30 @@ Files touched by the patch:
 
 | File                                                              | Purpose                                                                                                                                                                                                                                                                                         |
 |-------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `src/alcotest-engine/model.ml`                                    | Add `` `Incomplete of string`` variant to `Run_result.t`; mark non-failing                                                                                                                                                                                                                      |
-| `src/alcotest-engine/core.ml`                                     | `has_run` returns true on `Incomplete`; `protect_test` routes `Failure s` with a `"TODO:"` prefix to `` `Incomplete s ``                                                                                                                                                                        |
-| `src/alcotest-engine/pp_intf.ml`                                  | Extend the tag polymorphic variant; expose `current_test_suffix : string option ref` in `module type Pp` so the restricted `pp.mli` signature stays in sync                                                                                                                                     |
-| `src/alcotest-engine/pp.ml`                                       | Five tag branches (colour, label, error-pretty, tag-of-result, compact char); the `Result`-arm case that renders multi-line Incomplete messages indented under the verdict; and the per-test `current_test_suffix` ref + `~suffix` arg to `pp_result_full` that appends the inline stats suffix |
-| `src/alcotest-engine/test.ml`                                     | Add `let set_test_suffix s = Pp.current_test_suffix := Some s` as the public setter                                                                                                                                                                                                             |
-| `src/alcotest-engine/test.mli`                                    | Expose `val set_test_suffix : string -> unit` (re-exported through `Alcotest`)                                                                                                                                                                                                                  |
-| `test/e2e/alcotest/passing/incomplete_in_test.ml`                 | Minimal e2e regression test: one `[OK]` case + one `failwith "TODO:..."` case → `[INCOMPLETE]`, exit 0. Mirrors `skip_in_test.ml`                                                                                                                                                               |
-| `test/e2e/alcotest/passing/incomplete_in_test.expected`           | Sanitised expected output for the e2e diff alias                                                                                                                                                                                                                                                |
-| `test/e2e/alcotest/passing/incomplete_breakdown_in_test.ml`       | E2e regression for the multi-line `failwith "TODO:..."` path: the breakdown renders indented at col 16 below `[INCOMPLETE]`                                                                                                                                                                     |
-| `test/e2e/alcotest/passing/incomplete_breakdown_in_test.expected` | Sanitised expected output for the breakdown e2e diff alias                                                                                                                                                                                                                                      |
-| `test/e2e/alcotest/passing/dune.inc`                              | Auto-regenerated by `gen_dune_rules.exe` to wire both tests into the `runtest` alias                                                                                                                                                                                                            |
+Files touched in **both** variants:
 
-The patch adds exactly one public identifier (`Alcotest.set_test_suffix :
-string -> unit`) on top of augmenting `protect_test`'s runtime behaviour.
-If nothing calls `set_test_suffix`, the ref stays `None` and the suffix
-branch in `pp_result_full` is skipped — stock consumers see no behavioural
-change. The e2e regression tests live inside alcotest's own test harness
-and guard against accidental removal of the when-guard and the
-breakdown-rendering path.
+| File | Purpose |
+|------|---------|
+| `src/alcotest-engine/model.ml` | Add `` `Incomplete of string`` variant to `Run_result.t`; mark non-failing |
+| `src/alcotest-engine/core.ml` | `has_run` returns true on `Incomplete`; `protect_test` routes `Failure s` with `"TODO:"` prefix to `` `Incomplete s `` |
+| `src/alcotest-engine/pp.ml` | Five tag branches (colour, label, error-pretty, tag-of-result, compact char); `Result`-arm renders multi-line Incomplete messages indented under the verdict |
+| `test/e2e/alcotest/passing/incomplete_in_test.ml` | Minimal e2e regression: one `[OK]` + one `failwith "TODO:..."` → `[INCOMPLETE]`, exit 0 |
+| `test/e2e/alcotest/passing/incomplete_in_test.expected` | Sanitised expected output |
+| `test/e2e/alcotest/passing/incomplete_breakdown_in_test.ml` | E2e regression for the multi-line breakdown rendering |
+| `test/e2e/alcotest/passing/incomplete_breakdown_in_test.expected` | Sanitised expected output |
+| `test/e2e/alcotest/passing/dune.inc` | Auto-regenerated to wire both tests into the `runtest` alias |
+
+Additional files touched only in **`with_set_suffix`**:
+
+| File | Purpose |
+|------|---------|
+| `src/alcotest-engine/pp_intf.ml` | Expose `current_test_suffix : string option ref` in `module type Pp` |
+| `src/alcotest-engine/pp.ml` | Per-test `current_test_suffix` ref + `~suffix` arg to `pp_result_full` for the inline stats suffix |
+| `src/alcotest-engine/test.ml` | `let set_test_suffix s = Pp.current_test_suffix := Some s` |
+| `src/alcotest-engine/test.mli` | `val set_test_suffix : string -> unit` (re-exported through `Alcotest`) |
+
+The e2e regression tests live inside alcotest's own test harness and guard
+against accidental removal of the `when`-guard and the breakdown-rendering path.
 
 ### Make a change
 
@@ -152,8 +209,9 @@ After committing changes inside `../alcotest/`, regenerate the patch so
 `patches/alcotest-incomplete.patch` stays in sync with the branch:
 
 ```sh
-git -C ../alcotest format-patch 1.9.1..qcheck-inc-incomplete --stdout \
+git -C ../alcotest format-patch 1.9.1..with_set_suffix --stdout \
   > patches/alcotest-incomplete.patch
+# (replace with_set_suffix with without_set_suffix if on that branch)
 git add patches/alcotest-incomplete.patch
 git commit -m "Refresh alcotest patch"
 ```
@@ -184,16 +242,15 @@ Expected alcotest output fragment (verbose, `-v`):
   [FAIL]        substitution          3   Capture Avoidance (throws incomplet...   395 passed, 164 incomplete, 1 failed
 ```
 
-Two per-test annotations:
-- **Inline stats** (every QCheck test): `N passed[, M incomplete][, K failed]`
-  appended after the test doc. Wired via `Alcotest.set_test_suffix`: the
-  bridge sets the suffix from the QCheck `TestResult` before returning or
-  raising, and patched `pp.ml`'s `Result` arm reads and clears it when
-  rendering the verdict.
-- **Breakdown below `[INCOMPLETE]`**: the per-reason TODO list indented at
-  column 16 (`left_gutter + left_tag`). Encoded into the `failwith` message
-  and parsed by patched alcotest's `Result` arm — only fires on
-  `` `Incomplete ``.
+Two per-test annotations (output above is from `with_set_suffix`):
+- **Inline stats on verdict line** (`with_set_suffix` only): `N passed[, M incomplete][, K failed]`
+  appended after the test doc. Wired via `Alcotest.set_test_suffix`: the bridge sets
+  the suffix from the QCheck `TestResult` before returning or raising, and patched
+  `pp.ml`'s `Result` arm reads and clears it when rendering the verdict. In
+  `without_set_suffix`, stats appear in the failure message body instead.
+- **Breakdown below `[INCOMPLETE]`** (both variants): the per-reason TODO list indented
+  at column 16 (`left_gutter + left_tag`). Encoded into the `failwith` message and
+  parsed by patched alcotest's `Result` arm — only fires on `` `Incomplete ``.
 
 For `[FAIL]` tests that also have incomplete cases, the per-reason list is
 additionally appended to the failure-box body below the QCheck
@@ -257,24 +314,24 @@ tagging comes from patched alcotest's `protect_test` matching the
 ```sh
 git -C ../alcotest fetch origin
 git -C ../alcotest checkout <newer-tag>                # e.g. 1.10.0
-git -C ../alcotest switch qcheck-inc-incomplete        # our branch
+git -C ../alcotest switch with_set_suffix               # or without_set_suffix
 git -C ../alcotest rebase <newer-tag>                  # resolve any conflicts
 # Regenerate the patch file so it matches the new base:
-git -C ../alcotest format-patch <newer-tag>..qcheck-inc-incomplete --stdout \
+git -C ../alcotest format-patch <newer-tag>..with_set_suffix --stdout \
   > patches/alcotest-incomplete.patch
 opam reinstall alcotest --yes                          # pick up the new sources
 dune clean && dune build
 ```
 
-The patch is small — ~35 added lines across 5 files under
-`src/alcotest-engine/` (the `[INCOMPLETE]` tag plumbing, the multi-line
-breakdown rendering in `pp.ml`, and the per-test suffix hook spanning
-`pp_intf.ml`/`pp.ml`/`test.ml`/`test.mli`), plus two tiny regression
-guards (`incomplete_in_test.{ml,expected}` and
-`incomplete_breakdown_in_test.{ml,expected}`) and the mechanical `dune.inc`
-regeneration that pulls them into alcotest's own e2e harness. One
-user-facing addition (`Alcotest.set_test_suffix`), no refactors, so
+The `without_set_suffix` patch is small — ~20 added lines across 3 files under
+`src/alcotest-engine/` (the `[INCOMPLETE]` tag plumbing and the multi-line
+breakdown rendering in `pp.ml`), plus two tiny regression guards and the
+mechanical `dune.inc` regeneration. No new public identifiers, no refactors —
 conflicts on a routine upstream bump should be rare and mechanical.
+
+The `with_set_suffix` patch adds ~15 more lines across `pp_intf.ml`,
+`pp.ml`, `test.ml`, and `test.mli` for the per-test suffix hook and one
+user-facing identifier (`Alcotest.set_test_suffix`).
 
 ## Reverting to stock alcotest
 
@@ -284,14 +341,18 @@ opam pin remove alcotest --yes
 
 This restores the registry version. The clone at `../alcotest/` is untouched;
 re-pin with `opam pin add alcotest ../alcotest --kind=path --yes` (and make
-sure the branch is `qcheck-inc-incomplete`) to get the `[INCOMPLETE]` tag
-back. After reverting to stock, `dune exec test/core/lambda_subst_alco.exe`
+sure the branch is `with_set_suffix` or `without_set_suffix`) to get the
+`[INCOMPLETE]` tag back. After reverting to stock, `dune exec test/core/lambda_subst_alco.exe`
 still compiles and runs — the bridge uses only `failwith`, which is
 stdlib — but `failwith "TODO:..."` cases now get the standard `[FAIL]`
 treatment instead of `[INCOMPLETE]`, and incomplete-only runs exit 1
 instead of 0. Silent behavioural degradation, not a build error.
 
 ## The bridge: `src/alcotest/QCheck_alcotest.ml`
+
+> The description below applies to the **`with_set_suffix`** variant. In
+> `without_set_suffix` the bridge embeds the stats in the exception message
+> body instead of calling `Alcotest.set_test_suffix`.
 
 The QCheck → alcotest adapter never writes to stdout during test execution.
 All per-test information flows through two channels: (1) the inline stats
