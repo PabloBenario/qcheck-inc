@@ -140,6 +140,19 @@ val run_tests :
     @param out print output to the provided channel (default: [stdout])
     @param rand start the test runner in the provided RNG state *)
 
+val run_tests_inc :
+  ?handler:handler_gen ->
+  ?colors:bool -> ?verbose:bool -> ?long:bool ->
+  ?debug_shrink:(out_channel option) ->
+  ?debug_shrink_list:(string list) ->
+  ?out:out_channel -> ?rand:Random.State.t ->
+  QCheck2.Test.t list -> int
+(** Like {!run_tests}, but additionally reports per-test incomplete cases
+    raised via [failwith "TODO:..."]. Each test with [count_incomplete > 0]
+    triggers a yellow [+++ Incomplete +++] section listing the reasons and
+    their counts. The exit code is [0] unless a test actually failed or
+    errored — pure-incomplete runs are not treated as failures. *)
+
 val run_tests_main : ?argv:string array -> QCheck2.Test.t list -> 'a
 (** Can be used as the main function of a test file. Exits with a non-0 code
     if the tests fail. It refers to {!run_tests} for actually running tests

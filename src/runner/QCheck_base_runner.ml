@@ -392,6 +392,19 @@ let print_error ~colors out cell c_ex exn bt =
     bt;
   print_messages ~colors out cell c_ex.QCheck2.TestResult.msg_l
 
+let print_incomplete ~colors out cell r =
+  let count = QCheck2.TestResult.get_count_incomplete r in
+  if count > 0 then begin
+    let reasons = QCheck2.TestResult.get_todo_reasons r in
+    Printf.fprintf out "\n+++ %a %s\n\n"
+      (Color.pp_str_c ~colors `Yellow) "Incomplete" (String.make 65 '+');
+    Printf.fprintf out "Test %s had %d incomplete cases:\n%!"
+      (QCheck2.Test.get_name cell) count;
+    List.iter
+      (fun (reason, c) -> Printf.fprintf out "  %s (%d times)\n%!" reason c)
+      reasons
+  end
+
 let run_tests
     ?(handler=default_handler)
     ?(colors=true) ?(verbose=verbose()) ?(long=long_tests())
@@ -468,6 +481,97 @@ let run_tests
     Printf.fprintf out
       "%a (%d tests failed, %d tests errored, ran %d tests)\n%!"
       (pp_color `Red) "failure" fail error total;
+    1
+  )
+
+let run_tests_inc
+    ?(handler=default_handler)
+    ?(colors=true) ?(verbose=verbose()) ?(long=long_tests())
+    ?(debug_shrink=debug_shrink()) ?(debug_shrink_list=debug_shrink_list())
+    ?(out=stdout) ?rand l =
+  let rand = match rand with Some x -> x | None -> random_state_ ~colors () in
+  let module T = QCheck2.Test in
+  let module R = QCheck2.TestResult in
+  let pp_color = Color.pp_str_c ~bold:true ~colors in
+  let size = List.fold_left (fun acc (T.Test cell) ->
+      max acc (expect_size long cell)) 4 l in
+  if verbose then
+    Printf.fprintf out
+      "%*s %*s %*s %*s / %*s     time test name\n%!"
+      (size + 4) "generated" size "error"
+      size "fail" size "pass" size "total";
+  let aux_map (T.Test cell) =
+    let rand = Random.State.copy rand in
+    let expected = expect long cell in
+    let start = Unix.gettimeofday () in
+    let c = {
+      start; expected; gen = 0;
+      passed = 0; failed = 0; errored = 0;
+    } in
+    if verbose then (
+      last_msg := Unix.gettimeofday();
+      Printf.fprintf out "%s[ ] %a %s%!"
+        (if colors then Color.reset_line else "")
+        (pp_counter ~size) c (T.get_name cell));
+    let r = QCheck2.Test.check_cell ~long ~rand
+        ~handler:(handler ~colors ~debug_shrink ~debug_shrink_list
+                    ~size ~out ~verbose c).handler
+        ~step:(step ~colors ~size ~out ~verbose c)
+        ~call:(callback ~size ~out ~verbose ~colors c)
+        cell
+    in
+    Res (cell, r)
+  in
+  let res = List.map aux_map l in
+  let aux_fold (total, fail, error, incomplete, warns) (Res (cell, r)) =
+    let warns = warns + List.length (R.get_warnings r) in
+    let count_inc = QCheck2.TestResult.get_count_incomplete r in
+    let inc' = if count_inc > 0 then incomplete + 1 else incomplete in
+    let acc = match R.get_state r, QCheck2.Test.get_positive cell with
+      | R.Success, true ->
+        print_success ~colors out cell r;
+        print_incomplete ~colors out cell r;
+        (total + 1, fail, error, inc', warns)
+      | R.Success, false ->
+        let msg = Printf.sprintf "Negative test %s succeeded but was expected to fail" (QCheck2.Test.get_name cell) in
+        print_fail_other ~colors out cell msg;
+        (total + 1, fail + 1, error, incomplete, warns)
+      | R.Failed {instances=l}, true ->
+        List.iter (print_fail ~colors out cell) l;
+        print_incomplete ~colors out cell r;
+        (total + 1, fail + 1, error, inc', warns)
+      | R.Failed {instances=l}, false ->
+        if verbose then List.iter (print_expected_failure ~colors out cell) l;
+        (total + 1, fail, error, incomplete, warns)
+      | R.Failed_other {msg}, _ ->
+        print_fail_other ~colors out cell msg;
+        (total + 1, fail + 1, error, incomplete, warns)
+      | R.Error {instance=c_ex; exn; backtrace=bt}, _ ->
+        print_error ~colors out cell c_ex exn bt;
+        (total + 1, fail, error + 1, incomplete, warns)
+    in
+    acc
+  in
+  let total, fail, error, incomplete, warns = List.fold_left aux_fold (0, 0, 0, 0, 0) res in
+  Printf.fprintf out "%s\n" (String.make 80 '=');
+  if warns > 0 then Printf.fprintf out "%d warning(s)\n" warns;
+  if fail = 0 && error = 0 then (
+    if incomplete > 0 then
+      Printf.fprintf out "%a (ran %d tests, %d with incomplete cases)\n%!"
+        (pp_color `Yellow) "incomplete" total incomplete
+    else
+      Printf.fprintf out "%a (ran %d tests)\n%!"
+        (pp_color `Green) "success" total;
+    0
+  ) else (
+    if incomplete > 0 then
+      Printf.fprintf out
+        "%a (%d tests failed, %d tests errored, %d with incomplete cases, ran %d tests)\n%!"
+        (pp_color `Red) "failure" fail error incomplete total
+    else
+      Printf.fprintf out
+        "%a (%d tests failed, %d tests errored, ran %d tests)\n%!"
+        (pp_color `Red) "failure" fail error total;
     1
   )
 

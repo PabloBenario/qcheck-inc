@@ -327,12 +327,21 @@ let prop_subst_free_no_var_capture_open_subst_2_incomplete =
 (* SECTION 6: RUNNING WITH THE RUNNER                                         *)
 (* ========================================================================== *)
 
-let () =
-  QCheck_base_runner.run_tests_main [
-    test_validity;
-    test_shrinker;
-    prop_subst_free_no_var_capture_open_subst_naive;
-    prop_subst_free_no_var_capture_open_subst_incom;
-    prop_subst_free_no_var_capture_open_subst_mixed;
-    prop_subst_free_no_var_capture_open_subst_2_incomplete;
-  ]
+let tests = [
+  test_validity;
+  test_shrinker;
+  prop_subst_free_no_var_capture_open_subst_mixed;
+  prop_subst_free_no_var_capture_open_subst_naive;
+  prop_subst_free_no_var_capture_open_subst_incom;
+  prop_subst_free_no_var_capture_open_subst_2_incomplete;
+]
+
+(* The "incrementality-aware" runner. Reports per-test incomplete cases
+   (raised via [failwith "TODO:..."]) in a yellow [+++ Incomplete +++]
+   section; pure-incomplete tests no longer surface as silent passes.
+   Exit code is 0 unless something actually failed or errored. *)
+let () = exit (QCheck_base_runner.run_tests_inc tests)
+
+(* The original (incrementality-unaware) runner is preserved below for
+   comparison. To use it, swap the [let () = ...] above for the one below. *)
+(* let () = QCheck_base_runner.run_tests_main tests *)
