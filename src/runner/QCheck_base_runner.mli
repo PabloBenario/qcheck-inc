@@ -153,6 +153,12 @@ val run_tests_inc :
     their counts. The exit code is [0] unless a test actually failed or
     errored — pure-incomplete runs are not treated as failures. *)
 
+val run_tests_main_inc : ?argv:string array -> QCheck2.Test.t list -> 'a
+(** Like {!run_tests_main}, but uses {!run_tests_inc} so any test that
+    raises [failwith "TODO:..."] is reported as incomplete (not failure).
+    For tests that don't use the TODO convention, behaviour is identical
+    to {!run_tests_main}. *)
+
 val run_tests_main : ?argv:string array -> QCheck2.Test.t list -> 'a
 (** Can be used as the main function of a test file. Exits with a non-0 code
     if the tests fail. It refers to {!run_tests} for actually running tests

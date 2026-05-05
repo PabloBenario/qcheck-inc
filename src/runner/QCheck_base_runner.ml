@@ -586,3 +586,15 @@ let run_tests_main ?(argv=Sys.argv) l =
   with
     | Arg.Bad msg -> print_endline msg; exit 1
     | Arg.Help msg -> print_endline msg; exit 0
+
+let run_tests_main_inc ?(argv=Sys.argv) l =
+  try
+    let cli_args = parse_cli ~full_options:false argv in
+    exit
+      (run_tests_inc l
+         ~colors:cli_args.cli_colors
+         ~verbose:cli_args.cli_verbose
+         ~long:cli_args.cli_long_tests ~out:stdout ~rand:cli_args.cli_rand)
+  with
+    | Arg.Bad msg -> print_endline msg; exit 1
+    | Arg.Help msg -> print_endline msg; exit 0
