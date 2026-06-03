@@ -1,0 +1,201 @@
+\title{Incremental [Property-Based] Testing}
+
+\author{Pablo Benario}
+\email{pablo.benario@ug.uchile.cl}
+\affiliation{%
+  \institution{Universidad de Chile}
+  \city{Santiago}
+  \country{Chile}
+}
+\authornote{Research advisor: Prof. Éric Tanter.}
+
+\keywords{Property-Based Testing, OCaml, Unit Testing, Incremental Programming}
+
+\begin{document}
+
+\begin{abstract}
+  Property-based testing (PBT) validates software by checking
+  user-specified properties over randomly generated inputs. Testing an
+  incomplete system, however, is problematic: unimplemented code paths
+  raise exceptions that the testing framework indistinguishably classifies
+  as failures, masking genuine bugs beneath spurious ones. We present
+  \textit{incremental property-based testing}, an extension to the QCheck2
+  framework for OCaml where incomplete code paths signal their status via a
+  designated exception convention, and the framework classifies these cases
+  as a third outcome --- \textit{incomplete} --- distinct from both pass and
+  fail. The approach requires only surgical changes to the QCheck2 engine
+  and runner, and we validate it on a lambda calculus substitution example
+  and against multicoretests, a real-world concurrent PBT suite.
+\end{abstract}
+
+\maketitle
+
+%% ============================================================
+\section{Problem and Motivation}
+%% ============================================================
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% 1. Clearly state the problem being addressed and explain why a %
+% solution is needed.						 %
+% 2. What gap in the literature or practice does this		 %
+% work target?							 %
+% 3. Why is it important to the programming-language		 %
+% community?                                                     %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+Software development is incremental by nature: programmers do not
+produce finished software immediately, and software constantly evolves
+as new features are added. Nonetheless, they are expected to test
+their systems throughout the entire development cycle. Testing an
+incomplete system, however, is problematic: unimplemented code paths
+raise exceptions that the testing framework classifies as failures,
+indistinguishable from genuine bugs, forcing developers to either delay
+testing or manually silence spurious failures.
+
+This is not a new problem. Programmers have long annotated incomplete
+code with \texttt{TODO} comments, placeholder exceptions, and stub
+values. Programming languages provide first-class support for
+incompleteness: Haskell’s \texttt{undefined}, OCaml’s \texttt{failwith
+“not implemented”}, Agda’s holes, and Coq’s \texttt{Admitted} all
+signal that a term is intentionally left incomplete. Despite this,
+testing frameworks make no such distinction: a stub exception raised
+during a property check is a failure, on equal footing with a
+genuine bug.
+
+This gap is the focus of our work. PL research has established that
+incompleteness deserves first-class treatment in related contexts:
+gradual type systems allow partial type annotations without rejecting
+well-typed parts, and incremental certified programming allows partially
+implemented programs to be formally verified, with holes tracked
+separately. We argue the same principle applies to testing: an
+incomplete test case should produce an \textit{incomplete} outcome,
+not a failure.
+
+We propose \textit{incremental property-based testing}, where incomplete
+code paths raise a designated exception that the testing framework
+recognizes and classifies as incomplete rather than failed.
+
+%% ============================================================
+\section{Background and Related Work}
+%% ============================================================
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Describe the background necessary to appreciate the work in the %
+% context of ICFP areas of interest. Cite relevant prior work	  %
+% ~\cite{example2020} and explain where your work departs from it %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\textit{Property-based testing} was introduced by QuickCheck and is
+now a standard technique for finding bugs by generating random inputs
+and checking user-specified properties. QCheck2 is a mature OCaml PBT
+library that supports custom generators, shrinkers, and a flexible
+runner. In QCheck2, both a property violation and an unhandled exception
+result in a test failure: the framework makes no distinction between
+incomplete code and buggy code.
+
+\textit{Gradual typing} addresses a related problem in the type domain:
+a program with some untyped parts should not be entirely rejected; the
+typed parts should still be checked. The unknown type \texttt{?} plays
+the role of an incompleteness marker at the type level. Our work applies
+a similar idea to the testing level: a designated exception plays the
+role of an incompleteness marker at runtime.
+
+\textit{Incremental certified programming} extends proof assistants to
+allow programs with admitted goals (holes) to be partially certified:
+the proved parts are verified, holes are tracked and reported
+separately. This inspired the core principle of our work:
+incompleteness should be observable and separable, not a failure.
+
+Our work departs from the above in targeting the PBT setting and in
+providing a practical, library-level mechanism that requires no language
+extension.
+
+%% ============================================================
+\section{Approach and Uniqueness}
+%% ============================================================
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Describe your approach and clearly state how it is novel. What distinguishes %
+% your method from existing solutions?					       %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Our approach rests on a simple observation: in languages with a
+string-keyed exception mechanism, incompleteness can be represented by
+a naming convention on exceptions. We adopt the convention that an
+incomplete code path raises \texttt{failwith "TODO:<reason>"}, where
+the \texttt{TODO:} prefix acts as a machine-readable incompleteness
+marker.
+
+We extend QCheck2's inner loop (\texttt{check\_state\_input}), which
+evaluates each generated input against a property, to intercept
+\texttt{Failure} exceptions whose message begins with \texttt{TODO:}.
+Rather than counting such a case as a failure, the engine records the
+reason in a per-test hashtable, increments a new
+\texttt{count\_incomplete} field on the test result, and continues
+testing the remaining inputs. Non-\texttt{TODO} failures and errors are
+handled unchanged.
+
+Two additional changes complete the engine integration. First, the
+shrinker is guarded against incomplete candidates: a term that raises
+\texttt{TODO} during shrinking is discarded, since it is not a valid
+witness to a property violation. Second, the check-assumptions warning
+is suppressed when \texttt{count\_incomplete > 0}, avoiding noise for
+genuinely incomplete tests.
+
+We add \texttt{run\_tests\_inc} to the runner: after each test, if
+\texttt{count\_incomplete > 0}, a yellow \texttt{+++ Incomplete +++}
+banner lists each \texttt{TODO:<reason>} and its count. The exit code
+remains \texttt{0} for pure-incomplete runs, and is non-zero only for
+genuine failures or errors. The Alcotest bridge receives a parallel
+extension.
+
+The approach requires no new syntax, no type-system changes, and no
+framework rewrites. The same methodology --- a naming convention plus
+exception interception --- applies to any language with a string-keyed
+exception mechanism.
+
+
+
+%% ============================================================
+\section{Results and Contributions}
+%% ============================================================
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Show how your results contribute to programming-language design and %
+% implementation, and to computer science more broadly. Explain the   %
+% significance of those results.				      %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+We evaluate incremental PBT on two case studies.
+
+\paragraph{Lambda calculus substitution.}
+We test four implementations of capture-avoiding substitution
+simultaneously using the property that substitution must preserve
+free-variable correctness. The implementations are: (1) a naive, buggy
+implementation that fails to rename bound variables; (2) a correct but
+incomplete implementation that raises \texttt{failwith "TODO:..."} on
+some branches; (3) a mixed implementation with both a bug and incomplete
+branches; and (4) a complete, correct implementation. The runner
+correctly produces \textsc{fail} for (1), \textsc{incomplete} for (2),
+both \textsc{fail} and \textsc{incomplete} for (3), and \textsc{pass}
+for (4), thereby distinguishing errors from gaps.
+
+\paragraph{Multicoretests validation.}
+We validate the approach against multicoretests, a suite of 73
+concurrent property-based tests for the OCaml standard library built on
+QCheck-STM. We confirm that the framework correctly propagates
+incompleteness through the STM layer with zero unexpected failures.
+We then perform a \textit{hole-tolerance} experiment: we insert
+\texttt{failwith "TODO: Array.find\_opt"} into OCaml's standard library
+\texttt{Array.find\_opt}, recompile the compiler, and run the full
+\texttt{@ci} alias. The result is zero unexpected failures and zero
+errors; all test cases exercising \texttt{find\_opt} are correctly
+classified as incomplete and reported in the \texttt{+++ Incomplete +++}
+section. This demonstrates that incremental PBT propagates
+incompleteness through multiple layers of abstraction without
+false alarms.
+
+The key contributions are: (1) a minimal extension to QCheck2 that
+adds incompleteness as a first-class test outcome; (2) a naming
+convention requiring no language support; (3) extensions to the
+standalone runner and the Alcotest bridge; and (4) empirical validation
+on a real-world concurrent PBT suite.
+
+
