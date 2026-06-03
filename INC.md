@@ -47,8 +47,7 @@ Design constraints carried over from the thesis (§5.3):
 
 This is the full QCheck monorepo. The changes are split across the core
 QCheck2 library, the Alcotest adapter, the thesis-experiment test files,
-and a pair of out-of-band files that describe the patched alcotest
-dependency:
+and an out-of-band file that describes the patched alcotest dependency:
 
 | File                                 | Role                                                                                                                                                                            |
 |--------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -60,7 +59,6 @@ dependency:
 | `test/core/lambda_subst_alco.ml`     | Alcotest variant of the thesis experiment: same four substitution implementations exercised via `QCheck_alcotest`.                                                              |
 | `test/core/dune`                     | Added `lambda_subst` and `lambda_subst_alco` executable stanzas.                                                                                                                |
 | `ALCOTEST.md`                        | End-to-end setup reference for the patched alcotest dependency (sibling clone at `../alcotest/` + `opam pin`).                                                                  |
-| `patches/alcotest-incomplete.patch`  | The alcotest patch against tag `1.9.1`, shipped so the feature is reproducible from scratch without assuming any specific `../alcotest/` is already present.                    |
 
 All other modules (ounit integration, PPX deriver, existing tests) are
 **untouched**. Consumers that never raise `failwith "TODO:..."` observe
@@ -676,12 +674,10 @@ the developer exactly which branch was hit.
 - `dune` build system.
 - A local opam switch in `_opam/` (the project ships with one).
 - **A patched copy of alcotest** at `../alcotest/` (sibling of this repo),
-  on branch `qcheck-inc-incomplete` based on tag `1.9.1`. The patch adds
-  the `[INCOMPLETE]` outcome tag that the `QCheck_alcotest` bridge relies
-  on. The patch is small (≈ 11 lines across 4 engine files under
-  `src/alcotest-engine/`, plus a self-contained e2e regression test at
-  `test/e2e/alcotest/passing/incomplete_in_test.{ml,expected}`) and is
-  shipped in this repo as a backup at `patches/alcotest-incomplete.patch`.
+  on branch `without_set_suffix` (or `with_set_suffix`) based on tag `1.9.1`.
+  The patch adds the `[INCOMPLETE]` outcome tag that the `QCheck_alcotest`
+  bridge relies on. It is small (≈ 11 lines across 4 engine files under
+  `src/alcotest-engine/`, plus a self-contained e2e regression test).
 
 See `ALCOTEST.md` at the repo root for the end-to-end setup reference and
 `_pablo/parallel-dev-of-qcheck-inc-and-alcotest.md` for the rationale and
@@ -695,13 +691,11 @@ Activate the local switch:
 eval $(opam env --switch=.)
 ```
 
-If `../alcotest/` does not yet exist, clone and patch it:
+If `../alcotest/` does not yet exist, clone it:
 
 ```bash
-git clone git@github.com:mirage/alcotest.git ../alcotest
-git -C ../alcotest checkout 1.9.1
-git -C ../alcotest switch -c qcheck-inc-incomplete
-git -C ../alcotest am ./patches/alcotest-incomplete.patch
+git clone git@github.com:pablobenario/alcotest.git ../alcotest
+git -C ../alcotest switch without_set_suffix   # or with_set_suffix
 ```
 
 Pin the local opam switch at the sibling clone:
@@ -835,15 +829,10 @@ dune build                                   # opam rsyncs ../alcotest/ and rebu
 dune exec test/core/lambda_subst_alco.exe
 ```
 
-When the alcotest changes are ready, commit them inside `../alcotest/` and
-refresh the backup patch so this repo stays self-contained:
+When the alcotest changes are ready, commit them inside `../alcotest/`:
 
 ```bash
 git -C ../alcotest commit -am "<description>"
-git -C ../alcotest format-patch 1.9.1..qcheck-inc-incomplete --stdout \
-  > patches/alcotest-incomplete.patch
-git add patches/alcotest-incomplete.patch
-git commit -m "Refresh alcotest patch"
 ```
 
 #### 11.5.3 The branch-guard gotcha
@@ -1021,8 +1010,7 @@ Five observations about the code:
    cases would be tagged `[FAIL]` (exit 1) instead of `[INCOMPLETE]`
    (exit 0). This is a **silent behavioural degradation**, not a build
    error — the bridge uses only `failwith`, which compiles anywhere.
-   See `ALCOTEST.md` for setup and `patches/alcotest-incomplete.patch`
-   for the reproducible patch against the 1.9.1 tag.
+   See `ALCOTEST.md` for setup.
 
 Why no bespoke alcotest API (no `Alcotest.incomplete`) is needed: QCheck2
 itself catches `Failure s when todo_reason s <> None` *inside* its runner
@@ -1150,7 +1138,6 @@ The test binary is registered in `test/core/dune` as:
 | `test/core/lambda_subst.ml`         | Thesis experiment: 4 substitutions, generators, property, direct runners                                                                                                                                                         |
 | `test/core/lambda_subst_alco.ml`    | Alcotest variant of the thesis experiment (same 4 implementations via `QCheck_alcotest`)                                                                                                                                         |
 | `ALCOTEST.md`                       | End-to-end setup reference for the external patched alcotest (sibling clone + `opam pin`)                                                                                                                                        |
-| `patches/alcotest-incomplete.patch` | Consolidated patch against alcotest `1.9.1`, shipped in-repo so the alcotest changes are reproducible from scratch                                                                                                               |
 
 ### 15.2 Outside this repo (runtime dependency)
 

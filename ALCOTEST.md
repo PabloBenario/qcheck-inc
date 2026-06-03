@@ -77,8 +77,6 @@ experimental/
 ├── alcotest/                   # git clone of mirage/alcotest, branch with_set_suffix or without_set_suffix
 │                               # based on tag 1.9.1, patch commits on top
 └── qcheck-inc/                 # this repo
-    ├── patches/
-    │   └── alcotest-incomplete.patch   # the patch, for reproducibility
     └── src/alcotest/           # our QCheck ↔ alcotest bridge (QCheck_alcotest)
 ```
 
@@ -93,19 +91,15 @@ and an opam pin pointing at it.
 ### If `../alcotest/` does not yet exist
 
 ```sh
-git clone git@github.com:mirage/alcotest.git ../alcotest
-git -C ../alcotest checkout 1.9.1
-git -C ../alcotest switch -c with_set_suffix
-git -C ../alcotest am ./patches/alcotest-incomplete.patch
+git clone git@github.com:pablobenario/alcotest.git ../alcotest
+git -C ../alcotest checkout without_set_suffix   # or with_set_suffix
 ```
 
 ### If `../alcotest/` already exists on upstream `main`
 
 ```sh
 git -C ../alcotest fetch --tags
-git -C ../alcotest checkout 1.9.1
-git -C ../alcotest switch -c with_set_suffix
-git -C ../alcotest am ./patches/alcotest-incomplete.patch
+git -C ../alcotest switch without_set_suffix   # or with_set_suffix
 ```
 
 ### Pin opam to the sibling clone (one-time per switch)
@@ -202,22 +196,6 @@ dune build                              # link qcheck-inc against the updated al
 opam pin is a live *source* (`--kind=path`), but re-rsync only happens on an
 opam install/reinstall trigger. Run `opam reinstall alcotest --yes` after any
 edit to files under `../alcotest/src/`, then `dune build`.
-
-### Refresh the committed patch file
-
-After committing changes inside `../alcotest/`, regenerate the patch so
-`patches/alcotest-incomplete.patch` stays in sync with the branch:
-
-```sh
-git -C ../alcotest format-patch 1.9.1..with_set_suffix --stdout \
-  > patches/alcotest-incomplete.patch
-# (replace with_set_suffix with without_set_suffix if on that branch)
-git add patches/alcotest-incomplete.patch
-git commit -m "Refresh alcotest patch"
-```
-
-The patch file is the only record of the alcotest changes inside this repo,
-so keeping it current is how we stay reproducible without a submodule.
 
 ### Test the patch end-to-end
 
@@ -316,9 +294,6 @@ git -C ../alcotest fetch origin
 git -C ../alcotest checkout <newer-tag>                # e.g. 1.10.0
 git -C ../alcotest switch with_set_suffix               # or without_set_suffix
 git -C ../alcotest rebase <newer-tag>                  # resolve any conflicts
-# Regenerate the patch file so it matches the new base:
-git -C ../alcotest format-patch <newer-tag>..with_set_suffix --stdout \
-  > patches/alcotest-incomplete.patch
 opam reinstall alcotest --yes                          # pick up the new sources
 dune clean && dune build
 ```
