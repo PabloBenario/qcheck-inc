@@ -26,8 +26,9 @@
   (with-accepted-exit-codes 1
    (setenv CI false ; Don't run tests as if Alcotest was run in CI
     (setenv QCHECK_SEED 1234
-     (with-stdout-to %{targets}
-      (run ./run_alcotest.sh --color=never)))))))
+     (setenv ALCOTEST_COLUMNS 80 ; Pin box width so the snapshot is terminal-independent
+      (with-stdout-to %{targets}
+       (run ./run_alcotest.sh --color=never))))))))
 
 (rule
  (alias runtest)

@@ -76,14 +76,19 @@ let to_alcotest
              passed incomplete failed (format_reasons "  ")
       else ""
     in
-    (try T.check_result cell res
-     with exn ->
-       let bt = Printexc.get_raw_backtrace () in
-       let msg = Printexc.to_string exn ^ stats_line in
-       Printexc.raise_with_backtrace (Failure msg) bt);
-    if incomplete > 0 then
-      failwith
-        (Printf.sprintf "TODO:\n(passed: %d, incomplete: %d, failed: %d)%s"
-           passed incomplete failed (format_reasons "  "))
+    if incomplete > 0 then begin
+        (* Only rewrap the exception when we actually have incremental stats to
+           append; otherwise let the original QCheck exception propagate exactly
+           as upstream does (keeps the change additive). *)
+        (try T.check_result cell res
+         with exn ->
+           let bt = Printexc.get_raw_backtrace () in
+           let msg = Printexc.to_string exn ^ stats_line in
+           Printexc.raise_with_backtrace (Failure msg) bt);
+        failwith
+          (Printf.sprintf "TODO:\n(passed: %d, incomplete: %d, failed: %d)%s"
+             passed incomplete failed (format_reasons "  "))
+      end else
+      T.check_result cell res
   in
   ((name, speed_level, run) : unit Alcotest.test_case)
